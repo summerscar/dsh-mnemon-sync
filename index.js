@@ -199,19 +199,8 @@ export function apply(ctx, config = {}) {
 
     if (req.method === 'PUT' && route === '/settings') {
       const body = await readJsonBody(req)
-      const previous = settings()
       const incoming = body?.settings ?? body
-      // A masked secret coming back from the UI means "unchanged".
-      if (incoming !== null && typeof incoming === 'object' && incoming.target !== null && typeof incoming.target === 'object') {
-        const target = incoming.target
-        if (target.kind === 'webdav' && isMasked(target.password)) {
-          target.password = previous.target.kind === 'webdav' ? previous.target.password : ''
-        }
-        if (target.kind === 's3' && isMasked(target.secretAccessKey)) {
-          target.secretAccessKey = previous.target.kind === 's3' ? previous.target.secretAccessKey : ''
-        }
-      }
-      const saved = writeSettings(home, normalizeSettings(incoming))
+      const saved = writeSettings(home, normalizeSettings(restoreMaskedSecrets(incoming, settings())))
       scheduler.refresh()
       sendJson(res, 200, { settings: maskSettings(saved) })
       return
@@ -225,7 +214,10 @@ export function apply(ctx, config = {}) {
       const body = await readJsonBody(req)
       try {
         if (body?.settings !== undefined) {
-          const saved = writeSettings(home, normalizeSettings(body.settings))
+          // The same masked-secret rule as saving settings: the page always
+          // sends the mask it was shown, and writing that mask as the real
+          // password would silently break the next upload with a 401.
+          const saved = writeSettings(home, normalizeSettings(restoreMaskedSecrets(body.settings, settings())))
           scheduler.refresh()
           const result = await scheduler.runNow('manual')
           sendJson(res, 200, { result, settings: maskSettings(saved) })
@@ -555,6 +547,33 @@ function skipReason(manifest, component) {
 
 function isMasked(value) {
   return typeof value === 'string' && value !== '' && /^•+$/u.test(value)
+}
+
+/**
+ * Put the real secrets back into a settings payload that arrived masked.
+ *
+ * The page never receives a secret — `maskSettings` replaces it with bullets —
+ * and echoes those bullets back on every save. Treating them as a value would
+ * overwrite the real credential with eight bullet characters, which is exactly
+ * what made a correctly configured WebDAV target answer 401: the stored
+ * password really was `••••••••`.
+ *
+ * Any write path that accepts settings from the browser must run this first.
+ */
+function restoreMaskedSecrets(incoming, previous) {
+  if (incoming === null || typeof incoming !== 'object') return incoming
+  const target = incoming.target
+  if (target === null || typeof target !== 'object') return incoming
+  if (target.kind === 'webdav' && isMasked(target.password)) {
+    target.password = previous.target.kind === 'webdav' ? previous.target.password : ''
+  }
+  if (target.kind === 's3' && isMasked(target.secretAccessKey)) {
+    target.secretAccessKey = previous.target.kind === 's3' ? previous.target.secretAccessKey : ''
+  }
+  if (target.kind === 's3' && isMasked(target.sessionToken)) {
+    target.sessionToken = previous.target.kind === 's3' ? previous.target.sessionToken : ''
+  }
+  return incoming
 }
 
 /**
