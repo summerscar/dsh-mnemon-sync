@@ -129,6 +129,9 @@ window.__ModuleLoader__.load({
       duration: '耗时',
       size: '体积',
       componentsCount: '组件',
+      clearHistory: '清空记录',
+      historyCleared: '运行记录已清空',
+      clearFailed: '清空失败',
       error: '错误',
       loading: '读取中…',
       loadFailed: '读取失败',
@@ -229,6 +232,9 @@ window.__ModuleLoader__.load({
       duration: 'Duration',
       size: 'Size',
       componentsCount: 'Components',
+      clearHistory: 'Clear log',
+      historyCleared: 'Run history cleared',
+      clearFailed: 'Could not clear',
       error: 'Error',
       loading: 'Loading\u2026',
       loadFailed: 'Could not load',
@@ -652,6 +658,24 @@ window.__ModuleLoader__.load({
         } catch (cause) {
           setNotice({ ok: false, text: `${t('backupFailed')}: ${cause.message}` })
           await load()
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      /**
+       * Drop the run log. Archives on the target are not touched — this is a
+       * display reset, and the page says so before the button is pressed.
+       */
+      const clearHistory = async () => {
+        setBusy(true)
+        setNotice(null)
+        try {
+          await api('/clear-history', { method: 'POST', body: '{}' })
+          await load()
+          setNotice({ ok: true, text: t('historyCleared') })
+        } catch (cause) {
+          setNotice({ ok: false, text: `${t('clearFailed')}: ${cause.message}` })
         } finally {
           setBusy(false)
         }
@@ -1082,7 +1106,15 @@ window.__ModuleLoader__.load({
 
         // history
         h('section', { style: styles.card },
-          h('h3', { style: styles.cardTitle }, t('history')),
+          h('div', { style: styles.row },
+            h('h3', { style: { ...styles.cardTitle, marginRight: 'auto' } }, t('history')),
+            // The list keeps the newest 20 on its own; this clears what is left.
+            history.length === 0 ? null : h('button', {
+              style: styles.button,
+              disabled: busy,
+              onClick: () => void clearHistory(),
+            }, t('clearHistory')),
+          ),
           history.length === 0
             ? h('p', { style: styles.note }, t('noHistory'))
             : h('table', { style: styles.table },

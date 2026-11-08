@@ -72,6 +72,22 @@ export class SyncHistory {
   latest() {
     return this.read()[0]
   }
+
+  /**
+   * Drop the whole run history.
+   *
+   * History is a display convenience, not a record of truth: the archives
+   * themselves live on the target, and retention keys off the same list, so
+   * clearing it simply stops the page from showing past runs. Retention then
+   * has nothing to delete, which is the honest outcome — after clearing, this
+   * plugin no longer knows which keys it uploaded.
+   */
+  clear() {
+    const path = this.path()
+    mkdirSync(join(this.root, STATE_DIRECTORY), { recursive: true, mode: 0o700 })
+    writeFileSync(path, `${JSON.stringify({ version: 1, runs: [] }, null, 2)}\n`, { mode: 0o600 })
+    return []
+  }
 }
 
 /**

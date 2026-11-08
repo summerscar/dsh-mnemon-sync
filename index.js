@@ -231,6 +231,12 @@ export function apply(ctx, config = {}) {
       return
     }
 
+    if (req.method === 'POST' && route === '/clear-history') {
+      // Only the local run log is cleared; archives on the target are untouched.
+      sendJson(res, 200, { history: history.clear() })
+      return
+    }
+
     if (req.method === 'POST' && route === '/refresh-schedule') {
       scheduler.refresh()
       sendJson(res, 200, { scheduler: scheduler.snapshot(settings()) })
