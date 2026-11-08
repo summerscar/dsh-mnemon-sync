@@ -1,0 +1,3 @@
+- insert:
+    - id: mnemon-sync
+      name: '@summerscar/dsh-mnemon-sync'

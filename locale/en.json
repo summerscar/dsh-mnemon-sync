@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Memory space sync backup",
+    "description": "Archive the whole Mnemon data directory — every memory space database — to S3-compatible storage or WebDAV, with minute/hour/day/clock scheduling and retention."
+  }
+}
