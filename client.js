@@ -40,8 +40,8 @@ window.__ModuleLoader__.load({
 
     const zh = {
       tabLabel: '同步备份',
-      title: '记忆空间同步备份',
-      subtitle: '把 Mnemon 的记忆组件打包上传到 S3 或 WebDAV',
+      title: '同步备份',
+      subtitle: '把选定的记忆组件打包备份到 S3 兼容存储或 WebDAV，并可随时查看备份列表与恢复。',
       config: '备份配置',
       configNote: '以下三项一起保存。',
       scope: '备份范围',
@@ -144,8 +144,8 @@ window.__ModuleLoader__.load({
 
     const en = {
       tabLabel: 'Sync backup',
-      title: 'Memory space sync backup',
-      subtitle: 'Pack Mnemon\u2019s memory components to S3 or WebDAV',
+      title: 'Sync backup',
+      subtitle: 'Back up selected memory components to S3-compatible storage or WebDAV, with an archive list and restore.',
       config: 'Backup settings',
       configNote: 'All three sections below save together.',
       scope: 'Backup scope',
