@@ -1,21 +1,9 @@
 {
   "name": "@summerscar/dsh-mnemon-sync",
   "version": "0.1.0",
-  "private": true,
-  "type": "module",
   "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory) to S3-compatible storage or WebDAV.",
-  "keywords": [
-    "deepseek-harness",
-    "deepseek-harness-plugin",
-    "dsh-plugin",
-    "dsh-mnemon",
-    "mnemon",
-    "backup",
-    "restore",
-    "webdav",
-    "s3"
-  ],
-  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -33,8 +21,35 @@
     "zip.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "README.md",
+    "LICENSE"
   ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek-harness-plugin",
+    "dsh-mnemon",
+    "mnemon",
+    "backup",
+    "restore",
+    "memory",
+    "webdav",
+    "s3"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16",
+    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+  },
+  "peerDependencies": {
+    "dsh-mnemon": ">=0.5.40"
+  },
+  "peerDependenciesMeta": {
+    "dsh-mnemon": {
+      "optional": true
+    }
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -47,5 +62,16 @@
         "dsh-mnemon/client"
       ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/summerscar/dsh-mnemon-sync.git"
+  },
+  "bugs": {
+    "url": "https://github.com/summerscar/dsh-mnemon-sync/issues"
+  },
+  "homepage": "https://github.com/summerscar/dsh-mnemon-sync#readme",
+  "publishConfig": {
+    "access": "public"
   }
 }

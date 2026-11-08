@@ -19,6 +19,7 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -559,16 +560,31 @@ function isMasked(value) {
 /**
  * Resolve the dsh-mnemon extension SDK.
  *
- * A profile-installed bundle is linked by path, so this plugin directory has
- * no `node_modules` of its own and a bare `import('dsh-mnemon/extension-sdk')`
- * cannot resolve — the package only exists under the profile that installed
- * it. The SDK is therefore addressed by absolute path, with `DSH_PROFILE_DIR`
- * as the anchor and a few fallbacks for a Harness booted without a profile.
+ * A bare `import('dsh-mnemon/extension-sdk')` is not enough here. Installed
+ * from npm the package sits at `<profile>/node_modules/@summerscar/...`, so
+ * Node's own ancestor walk would find dsh-mnemon beside it — but a *linked*
+ * checkout lives outside the profile with no `node_modules` of its own, and
+ * then the walk finds nothing.
+ *
+ * Both install shapes are therefore covered, cheapest first:
+ *   1. From this module's own location, which is right for an npm install.
+ *   2. From `DSH_PROFILE_DIR`, which is right for a linked checkout and is set
+ *      in every shell and Host process a profile launches.
+ *   3. From `DSH_HOME/profiles/web`, for a Host booted without that variable.
  *
  * Returns `undefined` when dsh-mnemon is not installed at all, which is a
- * supported configuration: the backup keeps working without its tab.
+ * supported configuration: the backup keeps working without its page.
  */
 async function loadExtensionSdk() {
+  // 1. Ask Node, anchored at this file. Resolves for an npm install.
+  try {
+    const resolver = createRequire(import.meta.url)
+    const resolved = resolver.resolve('dsh-mnemon/lib/extension-sdk.js')
+    return await import(pathToFileURL(resolved).href)
+  } catch {
+    // Not resolvable from here: fall through to the profile-anchored paths.
+  }
+
   const candidates = []
   const profileDir = process.env.DSH_PROFILE_DIR?.trim()
   if (profileDir !== undefined && profileDir !== '') {
