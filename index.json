@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "title": {
+    "en": "summerscar's DSH plugins",
+    "zh": "summerscar 的 DSH 插件"
+  },
+  "description": {
+    "en": "Installable DeepSeek Harness bundles published by summerscar.",
+    "zh": "summerscar 发布的可安装 DeepSeek Harness 组合包。"
+  },
+  "metadata": {
+    "categories": {
+      "sessions": {
+        "title": {
+          "zh": "会话与记忆",
+          "en": "Sessions and memory"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "@summerscar/dsh-mnemon-sync",
+      "title": {
+        "zh": "同步备份",
+        "en": "Sync backup"
+      },
+      "description": {
+        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。",
+        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore."
+      },
+      "author": "summerscar",
+      "homepage": "https://summerscar.github.io/dsh-plugins/plugins/mnemon-sync/",
+      "repository": {
+        "url": "https://github.com/summerscar/dsh-plugins",
+        "directory": "plugins/dsh-mnemon-sync"
+      },
+      "metadata": {
+        "category": "sessions",
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "deepseek-harness",
+          "deepseek-harness-plugin",
+          "cordis",
+          "dsh-mnemon",
+          "mnemon",
+          "agent-memory",
+          "backup",
+          "restore",
+          "memory",
+          "sqlite",
+          "webdav",
+          "s3",
+          "cloudflare-r2"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.1.11",
+          "publishTimestamp": 1794223283,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+          }
+        }
+      ]
+    }
+  ]
+}

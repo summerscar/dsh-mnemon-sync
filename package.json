@@ -1,108 +1,38 @@
 {
-  "name": "@summerscar/dsh-mnemon-sync",
-  "version": "0.1.11",
-  "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory) to S3-compatible storage or WebDAV.",
+  "name": "dsh-plugins",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
-  "main": "index.js",
-  "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
-    "./source": "./source.js",
-    "./package.json": "./package.json"
+  "license": "SEE LICENSE IN LICENSE",
+  "packageManager": "pnpm@11.28.5",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.28.5",
+      "onFail": "download"
+    }
   },
-  "files": [
-    "index.js",
-    "source.js",
-    "client.js",
-    "store.js",
-    "snapshot.js",
-    "scheduler.js",
-    "targets.js",
-    "zip.js",
-    "cordis.patch.yml",
-    "locale/*.json",
-    "icon.svg",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md",
-    "assets/*",
-    "screenshots.json"
-  ],
-  "keywords": [
-    "dsh",
-    "dsh-plugin",
-    "deepseek-harness",
-    "deepseek-harness-plugin",
-    "cordis",
-    "dsh-mnemon",
-    "mnemon",
-    "agent-memory",
-    "backup",
-    "restore",
-    "memory",
-    "sqlite",
-    "webdav",
-    "s3",
-    "cloudflare-r2"
-  ],
-  "license": "MIT",
   "engines": {
-    "node": ">=22.16",
-    "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+    "node": ">=24"
   },
-  "peerDependencies": {
-    "dsh-mnemon": ">=0.5.40"
+  "scripts": {
+    "build": "pnpm --filter \"{plugins/*}\" --if-present run build",
+    "typecheck": "pnpm --filter \"{plugins/*}\" --if-present run typecheck",
+    "test": "pnpm --workspace-concurrency=2 --filter \"{plugins/*}\" test",
+    "pack:check": "pnpm --filter \"{plugins/*}\" exec npm pack --dry-run --cache .npm-cache",
+    "release:check": "node scripts/release-status.mjs --check-docs && node --test scripts/*.test.mjs",
+    "release:status": "node scripts/release-status.mjs",
+    "release:docs": "node scripts/release-status.mjs --write-docs",
+    "release:fingerprint": "node scripts/release-status.mjs --fingerprint",
+    "site:build": "node site/build.mjs",
+    "site:market": "node site/market.mjs",
+    "site:market:check": "node site/market.mjs --check",
+    "site:test": "node --test site/*.test.mjs",
+    "check": "pnpm release:check && pnpm site:test && pnpm test && pnpm pack:check && pnpm site:market:check"
   },
-  "peerDependenciesMeta": {
-    "dsh-mnemon": {
-      "optional": true
-    }
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-locale",
-        "dsh-mnemon/client"
-      ]
-    },
-    "catalog": {
-      "category": "tool",
-      "summary": {
-        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore.",
-        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。"
-      },
-      "capabilities": [
-        "webServer",
-        "mnemonMemory",
-        "slots",
-        "locale"
-      ]
-    },
-    "compatibility": {
-      "dsh": ">=0.2.1-rc.1 <0.3.0-0",
-      "profiles": [
-        "web",
-        "desktop"
-      ]
-    }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/summerscar/dsh-mnemon-sync.git"
-  },
-  "bugs": {
-    "url": "https://github.com/summerscar/dsh-mnemon-sync/issues"
-  },
-  "homepage": "https://github.com/summerscar/dsh-mnemon-sync#readme",
-  "publishConfig": {
-    "access": "public"
-  },
-  "icon": "./icon.svg"
+  "devDependencies": {
+    "marked": "18.0.14",
+    "semver": "^7.8.5",
+    "tar-stream": "3.2.1"
+  }
 }

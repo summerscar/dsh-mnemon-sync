@@ -1,0 +1,4 @@
+packages:
+  - plugins/*
+# Keep the hoisted layout used by this workspace's tools.
+nodeLinker: hoisted

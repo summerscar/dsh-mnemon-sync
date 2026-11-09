@@ -1,0 +1,115 @@
+{
+  "name": "@summerscar/dsh-mnemon-sync",
+  "version": "0.1.11",
+  "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory) to S3-compatible storage or WebDAV.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./source": "./source.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "source.js",
+    "client.js",
+    "store.js",
+    "snapshot.js",
+    "scheduler.js",
+    "targets.js",
+    "zip.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "docs/README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "assets/*",
+    "screenshots.json"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek-harness-plugin",
+    "cordis",
+    "dsh-mnemon",
+    "mnemon",
+    "agent-memory",
+    "backup",
+    "restore",
+    "memory",
+    "sqlite",
+    "webdav",
+    "s3",
+    "cloudflare-r2",
+    "dsh-plugins"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.16",
+    "dsh": ">=0.2.1-rc.1"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "dsh-mnemon": ">=0.5.40"
+  },
+  "peerDependenciesMeta": {
+    "dsh-mnemon": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "dsh-mnemon/client"
+      ]
+    },
+    "catalog": {
+      "category": "tool",
+      "summary": {
+        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore.",
+        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。"
+      },
+      "capabilities": [
+        "webServer",
+        "mnemonMemory",
+        "slots",
+        "locale"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.2.1-rc.1",
+      "profiles": [
+        "web",
+        "desktop"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/summerscar/dsh-plugins.git",
+    "directory": "plugins/dsh-mnemon-sync"
+  },
+  "bugs": {
+    "url": "https://github.com/summerscar/dsh-plugins/issues"
+  },
+  "homepage": "https://summerscar.github.io/dsh-plugins/plugins/mnemon-sync/",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "icon": "./icon.svg"
+}

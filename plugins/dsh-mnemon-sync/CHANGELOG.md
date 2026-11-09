@@ -2,6 +2,17 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## Unreleased
+
+**变更**
+
+- 仓库更名为 `dsh-plugins`，重构为 pnpm monorepo：插件源码整体迁入 `plugins/dsh-mnemon-sync/`，`git mv` 保留全部提交历史。npm 包名 `@summerscar/dsh-mnemon-sync` 不变，现有安装与更新链路不受影响。
+- npm 包 meta 更新：`repository` / `bugs` / `homepage` 指向新仓库与发布站，`repository.directory` 标注子目录；`publishConfig` 补 `registry`。
+- `engines.dsh` 与 `dsh.compatibility.dsh` 去掉 `<0.3.0-0` 上界，改为 `>=0.2.1-rc.1`，避免 loader 命中 profile 里的旧拷贝而停用插件；`keywords` 补 `dsh-plugins`。
+- 根许可证改用 **SATA 2.1**，包内 `LICENSE` 为同文副本；`package.json` 的 `license` 改为 `SEE LICENSE IN LICENSE`。**0.1.11 及之前发布在 npm 上的版本仍为 MIT，历史 tarball 不变。**
+- 包内 README 拆成英文 `README.md` 与中文 `docs/README.zh-CN.md`，`files` 同步列出；中文文档的相对链接改为 `../`。
+- 新增 `test/smoke.test.mjs`（`node --test`）与 `scripts` / `test` 命令；新增根工作区骨架、发布状态机、发布站、市场索引与 CI/发布工作流，详见根 [README](../README.zh-CN.md)。
+
 ## 0.1.11
 
 **新增**

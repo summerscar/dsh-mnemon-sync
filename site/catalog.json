@@ -1,0 +1,44 @@
+{
+  "siteUrl": "https://summerscar.github.io/dsh-plugins/",
+  "owner": {
+    "name": "summerscar",
+    "github": "https://github.com/summerscar",
+    "npm": "https://www.npmjs.com/~summerscar"
+  },
+  "source": "https://github.com/summerscar/dsh-plugins",
+  "categories": [
+    {
+      "id": "sessions",
+      "title": {
+        "zh": "会话与记忆",
+        "en": "Sessions and memory"
+      },
+      "summary": {
+        "zh": "让会话好找、能回顾，并从经验里学习。",
+        "en": "Keep sessions findable, reviewable, and learning from experience."
+      }
+    }
+  ],
+  "plugins": [
+    {
+      "slug": "mnemon-sync",
+      "package": "@summerscar/dsh-mnemon-sync",
+      "category": "sessions",
+      "kind": "plugin",
+      "title": {
+        "zh": "同步备份",
+        "en": "Sync backup"
+      },
+      "summary": {
+        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。",
+        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore."
+      },
+      "readme": {
+        "zh": "docs/README.zh-CN.md",
+        "en": "README.md"
+      },
+      "repository": "https://github.com/summerscar/dsh-plugins",
+      "directory": "plugins/dsh-mnemon-sync"
+    }
+  ]
+}
