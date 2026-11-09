@@ -22,7 +22,9 @@ const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf
 
 test('package identity and workspace location', () => {
   assert.equal(manifest.name, '@summerscar/dsh-mnemon-sync')
-  assert.equal(manifest.version, '0.1.11')
+  // The release workflow bumps this version before `pnpm check` runs, so only
+  // assert the shape here — pinning a literal would fail every publication.
+  assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
   assert.equal(manifest.license, 'SEE LICENSE IN LICENSE')
   assert.equal(manifest.engines.node, '>=22.16')
   assert.equal(manifest.engines.dsh, '>=0.2.1-rc.1')
