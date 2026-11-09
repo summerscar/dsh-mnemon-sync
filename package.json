@@ -5,13 +5,6 @@
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@11.28.5",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.28.5",
-      "onFail": "download"
-    }
-  },
   "engines": {
     "node": ">=24"
   },

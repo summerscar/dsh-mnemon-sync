@@ -186,7 +186,10 @@ export function recordVerifiedPublication(root, release, publication) {
 }
 
 export async function publish(root, packer, { lookup = readRegistry, fetcher = fetch,
-  submit = archive => npm(archive, root), wait = ms => new Promise(resolve => setTimeout(resolve, ms)), timeoutMs = 20 * 60_000 } = {}) {
+  // Run npm publish from the artifact directory: it has no package.json, so
+  // npm cannot read a devEngines/packageManager constraint from the workspace
+  // root and reject the publish with EBADDEVENGINES (npm insists it is pnpm).
+  submit = archive => npm(archive, join(root, '.artifacts/npm-release')), wait = ms => new Promise(resolve => setTimeout(resolve, ms)), timeoutMs = 20 * 60_000 } = {}) {
   const savedPlan = JSON.parse(readFileSync(join(root, planFile), 'utf8'));
   const { releases } = savedPlan;
   const pending = [];
