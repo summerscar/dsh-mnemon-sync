@@ -123,7 +123,6 @@ export function archiveKey(at = new Date(), device = 'device') {
   const stamp = at.toISOString().replace(/:/gu, '-')
   return `${ARCHIVE_PREFIX}${device}-${stamp}.zip`
 }
-
 export function apply(ctx, config = {}) {
   const dataRoot = resolveDataRoot(config)
   // `<home>/data` → `<home>`: settings and work files sit beside the store.

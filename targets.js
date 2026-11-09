@@ -467,7 +467,10 @@ function encodeRfc3986(value) {
  * misconfigured, and paging the whole bucket would cost more than it explains.
  */
 async function listS3(target, signal) {
-  const url = new URL(s3Url(target, ''))
+  // ListObjectsV2 operates on the bucket: the path is the bucket alone and
+  // the prefix carries the folder. s3Url(target, '') would put remotePath in
+  // the path, and the store then answers 404 NoSuchKey for the missing object.
+  const url = new URL(s3Endpoint(target))
   url.searchParams.set('list-type', '2')
   url.searchParams.set('prefix', `${target.remotePath}/`)
   const { response } = await signedS3UrlRequest(target, 'GET', url, signal)
@@ -519,7 +522,13 @@ async function signedS3UrlRequest(target, method, url, signal) {
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n')
   const signingKey = signatureKey(target.secretAccessKey, dateStamp, target.region)
   const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex')
-  const response = await fetch(url, {
+  // The signature covers the canonical (RFC 3986) query, but URLSearchParams
+  // re-encodes spaces as `+` when the URL stringifies, which would not match
+  // what was signed. Serialize the query for the wire with the same encoding.
+  const wireQuery = [...url.searchParams.entries()]
+    .map(([name, value]) => `${encodeRfc3986(name)}=${encodeRfc3986(value)}`)
+    .join('&')
+  const response = await fetch(`${url.origin}${url.pathname}?${wireQuery}`, {
     method,
     headers: {
       ...headers,
