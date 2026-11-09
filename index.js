@@ -40,10 +40,10 @@ const API_PREFIX = '/api/mnemon-sync'
 const ARCHIVE_PREFIX = 'mnemon-sync-'
 
 export const name = 'dsh-mnemon-sync'
-// `mnemonMemory` is optional on purpose: the plugin still backs up on a profile
-// where dsh-mnemon is absent or too old to accept Sources, it just cannot offer
-// its page there.
-export const inject = ['webServer']
+// `connection` gates every HTTP route below. `mnemonMemory` stays optional on
+// purpose: the plugin still backs up on a profile where dsh-mnemon is absent
+// or too old to accept Sources, it just cannot offer its page there.
+export const inject = ['webServer', 'connection']
 
 /**
  * `MNEMON_DATA_DIR` names the Mnemon home; the memory store itself lives in
@@ -201,10 +201,45 @@ export function apply(ctx, config = {}) {
   // page use its own type instead of borrowing `memory-spaces`, which is the
   // only way its tab can highlight independently.
 
+  /**
+   * Admit only requests the Host's connection service vouches for.
+   *
+   * These routes read credentials, trigger uploads and can restore files onto
+   * disk, so an unauthenticated local request must never reach them. Follow
+   * the current `requestRejection(req)` contract (undefined = admit, or an
+   * HTTP status); older Hosts exposing only `authorizeIndex` still work.
+   * If neither is available, reject rather than falling back to Host/Origin
+   * or loopback checks — a missing guard is not a reason to open the route.
+   */
+  const rejected = (req, res) => {
+    const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
+    if (connection === undefined || connection === null) {
+      res.statusCode = 401
+      res.end()
+      return true
+    }
+    if (typeof connection.requestRejection === 'function') {
+      const rejection = connection.requestRejection(req)
+      if (rejection === undefined) return false
+      res.statusCode = rejection
+      res.end()
+      return true
+    }
+    if (typeof connection.authorizeIndex === 'function') {
+      // `authorizeIndex` answers the response itself when it rejects; its
+      // boolean says which way it went.
+      return connection.authorizeIndex(req, res) === false
+    }
+    res.statusCode = 401
+    res.end()
+    return true
+  }
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: API_PREFIX,
     handler: (req, res) => {
+      if (rejected(req, res)) return
       void handle(req, res).catch((error) => {
         sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
       })
