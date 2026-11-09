@@ -97,7 +97,7 @@
   "bugs": {
     "url": "https://github.com/summerscar/dsh-mnemon-sync/issues"
   },
-  "homepage": "https://www.npmjs.com/package/@summerscar/dsh-mnemon-sync",
+  "homepage": "https://github.com/summerscar/dsh-mnemon-sync#readme",
   "publishConfig": {
     "access": "public"
   },
