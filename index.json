@@ -52,18 +52,19 @@
           "sqlite",
           "webdav",
           "s3",
-          "cloudflare-r2"
+          "cloudflare-r2",
+          "dsh-plugins"
         ]
       },
       "versions": [
         {
-          "version": "0.1.11",
-          "publishTimestamp": 1794223283,
+          "version": "0.1.12",
+          "publishTimestamp": 1794256436,
           "source": {
             "type": "npm"
           },
           "engines": {
-            "dsh": ">=0.2.1-rc.1 <0.3.0-0"
+            "dsh": ">=0.2.1-rc.1"
           }
         }
       ]
