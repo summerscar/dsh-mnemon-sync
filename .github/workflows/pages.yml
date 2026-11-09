@@ -1,14 +1,18 @@
 name: Pages
 
-# Builds the plugin site from site/catalog.json plus live npm data.
-# Scheduled and post-publish runs keep versions current without a commit here,
-# including plugins released from other repositories.
+# Builds the plugin site from site/catalog.json plus live npm data into _site/
+# and deploys it through GitHub Actions. The Pages source MUST be set to
+# "GitHub Actions" in the repository settings; "Deploy from a branch" would
+# serve a Jekyll-rendered root README instead of this site.
+#
+# A push to main is the only automatic trigger. The publish workflow's own
+# `commit` step pushes to main, which triggers this workflow naturally — an
+# extra workflow_run trigger would start two concurrent Pages runs that both
+# upload an artifact named "github-pages", making one deploy fail with
+# "No artifacts named github-pages were found".
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: [Publish npm plugins]
-    types: [completed]
   schedule:
     - cron: "17 1 * * *"
   workflow_dispatch:
@@ -38,6 +42,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm site:test
       - run: pnpm site:build
+      # render.mjs writes _site/.nojekyll; assert it so a regression cannot
+      # silently let Jekyll take over the deployed site.
+      - name: Verify static site output
+        run: |
+          test -f _site/index.html
+          test -f _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -26,4 +26,6 @@ README 原始 HTML 只保留 `<img>`、`<br>`，链接/图片地址只允许 htt
 
 ## 验证与部署
 
-`pnpm site:test`（离线）、`pnpm site:build`（拉线上数据）、`pnpm site:market:check`（核对 Git 市场索引与 npm）、`node site/build.mjs --save-snapshot|--snapshot .scratch/snap.json`（快照离线重建）、`pnpm check`。改页面后本地预览 `_site/`（桌面+手机宽度）；站点在 `/dsh-plugins/` 子路径下，页面内链接用相对路径（404 除外）。部署：`.github/workflows/pages.yml` 在推 `main`、**Publish npm plugins** 结束后和每天 01:17 UTC 跑 test+build 并部署；拉取失败时构建直接报错退出，线上保留上一版已验证页面。
+`pnpm site:test`（离线）、`pnpm site:build`（拉线上数据）、`pnpm site:market:check`（核对 Git 市场索引与 npm）、`node site/build.mjs --save-snapshot|--snapshot .scratch/snap.json`（快照离线重建）、`pnpm check`。改页面后本地预览 `_site/`（桌面+手机宽度）；站点在 `/dsh-plugins/` 子路径下，页面内链接用相对路径（404 除外）。
+
+部署：`.github/workflows/pages.yml` 在推 `main` 和每天 01:17 UTC 跑 test+build 后，用 `upload-pages-artifact` + `deploy-pages` 部署 `_site/`。**仓库 Pages 设置的 Source 必须是「GitHub Actions」**；若设成「Deploy from a branch」，GitHub 会用 Jekyll 渲染仓库根 README 覆盖站点，表现为首页变成 README、`/assets/site.css` 404。上传产物前会校验 `_site/index.html` 与 `_site/.nojekyll` 存在；仓库根也留了 `.nojekyll` 兜底。发布流程的 `commit` 步骤会 push 到 `main` 并自然触发 Pages，因此**不要**再加 `workflow_run` 触发源：两个并发 Pages run 会争用同名 `github-pages` artifact，导致其中一个部署失败。拉取失败时构建直接报错退出，线上保留上一版已验证页面。
