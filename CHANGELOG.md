@@ -2,6 +2,45 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## 0.1.11
+
+**新增**
+
+- 随包附带「同步备份」页截图：`assets/screenshot-config.png` 与 `screenshots.json`（插件市场约定 1–8 张），README 同步嵌入；`files` 补上 `assets/*` 与 `screenshots.json`，保证 npm 发布包里真的带图。
+
+## 0.1.10
+
+**修复**
+
+- **S3 列不出备份**：ListObjectsV2 是桶级操作，此前把 `remotePath` 拼进请求路径，对象存储回 `404 NoSuchKey`。现在请求桶根，文件夹改由 `prefix` 查询参数给出。
+- **S3 签名不匹配**：canonical query 用 RFC 3986 编码，但 `URLSearchParams` 字符串化会把空格变成 `+`，签名覆盖的与实际发出的不一致。现在按同一套编码手工序列化 wire query。
+
+## 0.1.9
+
+**修复**
+
+- **安全**：恢复时把写入目标严格限制在 `data/`、`documents/`、`runtime/` 三个组件目录内。此前只校验「不逃出 Mnemon home」，备份包里 `payload/data/../state/mnemon-sync.json` 这类条目仍会解析到 home 内并覆盖插件凭据或机器标识。现在 `payload/` 后首段必须精确命中白名单，且拒绝 `..`、空段与 NUL；非法条目直接报错，不静默跳过。
+
+## 0.1.8
+
+**修复**
+
+- **安全**：全部 HTTP 接口接入宿主认证（`connection.requestRejection`）。这些接口能读凭据、触发上传、把备份写回磁盘，此前本机任意请求都能调用；兼容只暴露 `authorizeIndex` 的旧宿主，两者都不可用时一律返回 401，不再回退到 Host/Origin/loopback 判断。
+- 0.1.7 已发布且不含上述认证修复，故随即 bump 到 0.1.8 重新发布。
+
+## 0.1.7
+
+**新增**
+
+- `compatibility.profiles` 增加 `desktop`；README 补桌面版说明（`desktop` profile 由 Electron 应用独占管理，`dsh plugin --profile desktop` 会被 dsh 自身拒绝）。
+
+## 0.1.6
+
+**变更**
+
+- 补全插件目录/市场上架字段：`dsh.catalog`（分类 `tool`、中英简介、能力声明 `webServer` / `mnemonMemory` / `slots` / `locale`）与 `dsh.compatibility`（DSH `>=0.2.1-rc.1 <0.3.0-0`、适用 profile）。
+- `exports` 增加 `./package.json`，声明 `icon: ./icon.svg`；`homepage` 最终定回 GitHub 仓库地址。
+
 ## 0.1.5
 
 **新增**
