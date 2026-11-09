@@ -1,6 +1,6 @@
 {
   "name": "@summerscar/dsh-mnemon-sync",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory) to S3-compatible storage or WebDAV.",
   "type": "module",
   "main": "index.js",

@@ -487,14 +487,21 @@ export function apply(ctx, config = {}) {
       }))
     const restorable = requested.filter((component) => present.includes(component))
 
-    // Plan first, so a dry run and a real run describe the same work.
+    // Plan first, so a dry run and a real run describe the same work. Entries
+    // whose path does not resolve into a component directory (a foreign file
+    // smuggled into the archive) are rejected outright rather than skipped:
+    // a listing that silently drops entries would hide what a restore does.
     const plan = []
     for (const component of restorable) {
       for (const [relative, content] of files.entries()) {
         if (relative === 'manifest.json') continue
         const director = componentDirectoryOf(relative)
         if (director !== component) continue
-        plan.push({ component, relative, destination: destinationFor(home, relative), bytes: content.length })
+        const destination = destinationFor(home, relative)
+        if (destination === undefined) {
+          throw new Error(`archive entry cannot be restored safely: ${relative}`)
+        }
+        plan.push({ component, relative, destination, bytes: content.length })
       }
     }
 
@@ -594,20 +601,44 @@ function componentDirectoryOf(relative) {
 }
 
 /**
- * Where one archive path lands in the Mnemon home.
+ * Archive payload directories that a restore may write, mapped to the live
+ * directories they land in. `state/` is deliberately absent: it holds this
+ * plugin's credentials and dsh-mnemon's machine identity, and no backup
+ * component backs it up.
+ */
+const RESTORE_DIRECTORIES = {
+  data: 'data',
+  documents: 'documents',
+  runtime: 'runtime',
+}
+
+/**
+ * Where one archive path lands in the Mnemon home, or `undefined` when the
+ * path is not part of a restorable component.
  *
- * `payload/` is dropped and the component directories are the same names the
- * store itself uses, so a restored tree is byte-identical in layout to a live
- * one. The path is resolved and checked so a malformed archive cannot walk out
- * of the home directory.
+ * The check is deliberately stricter than "stays inside the home": a restore
+ * must only ever touch the three component directories (`data/`, `documents/`,
+ * `runtime/`). Everything else in the home — `state/` with this plugin's own
+ * credentials and dsh-mnemon's machine identity, `skills/`, the archive
+ * workroot — must be unreachable from an archive, because the archive is
+ * untrusted data. A zip entry like `payload/data/../state/mnemon-sync.json`
+ * resolves inside the home yet would overwrite the stored credentials, so the
+ * first path segment after `payload/` is matched exactly against the three
+ * component names and no `..` or nested separator survives.
  */
 function destinationFor(home, relative) {
-  const stripped = relative.replace(/^payload\//u, '')
-  const destination = resolve(home, stripped)
-  const root = resolve(home)
-  if (destination !== root && !destination.startsWith(`${root}/`)) {
-    throw new Error(`archive entry escapes the Mnemon home: ${relative}`)
-  }
+  if (!relative.startsWith('payload/')) return undefined
+  const stripped = relative.slice('payload/'.length)
+  const separator = stripped.indexOf('/')
+  if (separator <= 0) return undefined
+  const topDirectory = stripped.slice(0, separator)
+  const componentDirectory = RESTORE_DIRECTORIES[topDirectory]
+  if (componentDirectory === undefined) return undefined
+  const rest = stripped.slice(separator + 1)
+  if (rest === '' || rest.includes('\0') || rest.split('/').includes('..')) return undefined
+  const destination = resolve(home, componentDirectory, ...rest.split('/'))
+  const root = resolve(home, componentDirectory)
+  if (!destination.startsWith(`${root}/`)) return undefined
   return destination
 }
 
