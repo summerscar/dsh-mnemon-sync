@@ -266,7 +266,29 @@ function parseWebDavListing(xml, remotePath) {
       modifiedAt: textOf(/<[^:>]*:?getlastmodified[^>]*>([^<]+)</iu.exec(block)),
     })
   }
-  return entries.sort((left, right) => String(right.modifiedAt ?? '').localeCompare(String(left.modifiedAt ?? '')))
+  return newestFirst(entries)
+}
+
+/**
+ * Sort archives newest first.
+ *
+ * `modifiedAt` is an RFC 1123 string (`Sun, 09 Nov 2026 08:00:00 GMT`) from
+ * WebDAV and an ISO 8601 string from S3. Comparing those as text is wrong: the
+ * weekday and day lead the WebDAV form, so "09 Nov 23:00" sorts before
+ * "10 Nov 01:00" even though it is older. Parse to an instant instead.
+ *
+ * An unparseable or missing stamp sorts last rather than corrupting the order:
+ * a listing that cannot say when something was written should not push a
+ * usable row off the top.
+ */
+function newestFirst(entries) {
+  const stamp = (entry) => {
+    const value = entry?.modifiedAt
+    if (typeof value !== 'string') return Number.NEGATIVE_INFINITY
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed
+  }
+  return entries.sort((left, right) => stamp(right) - stamp(left))
 }
 
 function integerOf(match) {
@@ -465,7 +487,7 @@ async function listS3(target, signal) {
       modifiedAt: textOf(/<LastModified>([^<]+)<\/LastModified>/u.exec(block)),
     })
   }
-  return entries.sort((left, right) => String(right.modifiedAt ?? '').localeCompare(String(left.modifiedAt ?? '')))
+  return newestFirst(entries)
 }
 
 /**
