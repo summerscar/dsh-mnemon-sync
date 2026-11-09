@@ -46,16 +46,19 @@ jobs:
           node-version: 24.21.0
           registry-url: https://registry.npmjs.org/
           cache: pnpm
-      # Trusted publishing (OIDC): npm CLI >= 11.5.1 is required. setup-node@v4
-      # writes //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} into the
-      # userconfig .npmrc; with no token set that empty placeholder makes npm
-      # fall back to token auth instead of the workflow's OIDC identity
-      # (ENEEDAUTH). The key is protected, so `npm config delete` cannot remove
-      # it — strip the line from every .npmrc setup-node may have touched.
+      # Trusted publishing (OIDC) requires npm CLI >= 11.5.1; the npm bundled
+      # with Node 24.21.0 (11.x) already satisfies this. Do NOT install
+      # npm@latest: npm 12 is a new major that changes `npm pack --json` output
+      # and broke the plan step. setup-node@v4 writes
+      # //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} into the userconfig
+      # .npmrc; with no token set that empty placeholder makes npm fall back to
+      # token auth instead of the workflow's OIDC identity (ENEEDAUTH). The key
+      # is protected, so `npm config delete` cannot remove it — strip the line
+      # from every .npmrc setup-node may have touched.
       - name: Prepare OIDC-only npm auth
         if: steps.source.outputs.current == 'true'
         run: |
-          npm install -g npm@latest
+          npm --version
           for rc in "$NPM_CONFIG_USERCONFIG" "$RUNNER_TEMP/.npmrc" "$HOME/.npmrc" ./.npmrc; do
             if [ -n "$rc" ] && [ -f "$rc" ]; then
               sed -i '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$rc"

@@ -45,9 +45,27 @@ export function publishManifest(manifest, versions) {
   return result;
 }
 
+/**
+ * `npm pack --json` result shapes:
+ *   npm 11  -> [ { id, files, ... } ]
+ *   npm 12+ -> { "<package-id>": { id, files, ... } }
+ * Accept both (and a bare entry object) so a CI npm upgrade cannot break the
+ * release plan mid-run.
+ */
+function firstPackEntry(output) {
+  const parsed = JSON.parse(output);
+  let entry = Array.isArray(parsed) ? parsed[0] : parsed;
+  if (entry && !Array.isArray(entry.files)) {
+    const values = Object.values(entry);
+    if (values.length === 1 && values[0] && Array.isArray(values[0].files)) entry = values[0];
+  }
+  if (!entry || !Array.isArray(entry.files)) throw new Error('Unexpected npm pack --json output');
+  return entry;
+}
+
 export function packRelease(root, pkg, packages, npm, fingerprint) {
   const directory = join(root, pkg.directory);
-  const [selection] = JSON.parse(npm(['pack', '--dry-run', '--ignore-scripts', '--json'], directory));
+  const selection = firstPackEntry(npm(['pack', '--dry-run', '--ignore-scripts', '--json'], directory));
   const versions = new Map(packages.map(item => [item.name,
     JSON.parse(readFileSync(join(root, item.directory, 'package.json'), 'utf8')).version]));
   const output = join(root, '.artifacts/npm-release');
@@ -65,7 +83,7 @@ export function packRelease(root, pkg, packages, npm, fingerprint) {
         copyFileSync(join(directory, file.path), destination);
       }
     }
-    const [packed] = JSON.parse(npm(['pack', '--ignore-scripts', '--json', '--pack-destination', output], stage));
+    const packed = firstPackEntry(npm(['pack', '--ignore-scripts', '--json', '--pack-destination', output], stage));
     const hash = fingerprint(packed.files, path => readFileSync(join(stage, path)));
     return { packed, hash, archive: join(output, packed.filename) };
   } finally {
