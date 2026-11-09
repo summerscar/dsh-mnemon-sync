@@ -24,19 +24,25 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "keywords": [
+    "dsh",
     "dsh-plugin",
     "deepseek-harness",
     "deepseek-harness-plugin",
+    "cordis",
     "dsh-mnemon",
     "mnemon",
+    "agent-memory",
     "backup",
     "restore",
     "memory",
+    "sqlite",
     "webdav",
-    "s3"
+    "s3",
+    "cloudflare-r2"
   ],
   "license": "MIT",
   "engines": {
