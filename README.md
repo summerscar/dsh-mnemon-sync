@@ -33,6 +33,8 @@ dsh plugin --profile web add @summerscar/dsh-mnemon-sync
 
 重启 DSH，打开记忆系统即可看到「同步备份」。没装 `dsh-mnemon` 时插件仍可运行，只是不显示标签页。
 
+> **Desktop 版**：在桌面应用的插件界面里安装即可。`desktop` profile 由 Electron 应用独占管理，命令行 `dsh plugin --profile desktop` 会被拒绝，这是 dsh 自身的限制。
+
 ## 功能
 
 **三个组件，任意组合**（默认全选）
