@@ -20,6 +20,7 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { hostname } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
 import { SyncHistory, SyncScheduler } from './scheduler.js'
@@ -83,9 +84,44 @@ async function readJsonBody(req) {
   return JSON.parse(text)
 }
 
-/** `mnemon-sync-2026-11-09T041500Z.zip`: sorts lexicographically by time. */
-export function archiveKey(at = new Date()) {
-  return `${ARCHIVE_PREFIX}${at.toISOString().replace(/:/gu, '-')}.zip`
+/**
+ * The name this machine goes by in an archive name.
+ *
+ * Read from dsh-mnemon's own identity file (`state/machine.json`) so a backup
+ * uploaded from several machines stays tellable apart. Falls back to the
+ * hostname, then to a fixed word, so the key never ends up with an empty
+ * segment. Characters that would be awkward in a filename — slashes, spaces,
+ * anything a WebDAV path segment must escape — collapse to a single dash.
+ */
+export function deviceName(home) {
+  let label = ''
+  try {
+    const identity = JSON.parse(readFileSync(join(home, 'state', 'machine.json'), 'utf8'))
+    if (typeof identity?.label === 'string') label = identity.label
+  } catch {
+    // No identity file yet: the hostname is the same fallback dsh-mnemon uses.
+  }
+  if (label.trim() === '') {
+    try {
+      label = hostname()
+    } catch {
+      label = ''
+    }
+  }
+  const cleaned = label.trim().replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/gu, '')
+  return cleaned === '' ? 'device' : cleaned.slice(0, 60)
+}
+
+/**
+ * `mnemon-sync-<device>-2026-11-09T00-53-57.903Z.zip`
+ *
+ * The device name sits after the prefix and before the timestamp, so archives
+ * from different machines sort together by time within one device and are
+ * still obvious at a glance in a shared folder.
+ */
+export function archiveKey(at = new Date(), device = 'device') {
+  const stamp = at.toISOString().replace(/:/gu, '-')
+  return `${ARCHIVE_PREFIX}${device}-${stamp}.zip`
 }
 
 export function apply(ctx, config = {}) {
@@ -108,7 +144,7 @@ export function apply(ctx, config = {}) {
     try {
       const snapshot = await buildSnapshot(home, staging, { components: current.components })
       verifySnapshot(staging)
-      const key = archiveKey()
+      const key = archiveKey(new Date(), deviceName(home))
       const archive = createZip(collect(staging), { level: 6 })
       const uploaded = await uploadArchive(target, key, archive, { signal })
       const removed = await applyRetention(history, target, current.retention.keep, { signal })
@@ -610,11 +646,21 @@ function collect(root, prefix = '') {
  * as removed.
  */
 async function applyRetention(history, target, keep, options) {
+  // Sort by when the run happened, not by key. With a device name in the key,
+  // lexical order groups by device first, so "keep the newest N" would delete
+  // this machine's newest archive before another machine's oldest one.
   const uploaded = history.read()
     .filter((run) => run.ok && typeof run.key === 'string')
-    .map((run) => run.key)
-  const unique = [...new Set(uploaded)].sort()
-  const overflow = unique.slice(0, Math.max(0, unique.length - keep))
+    .map((run) => ({ key: run.key, at: Date.parse(run.finishedAt ?? run.startedAt ?? '') || 0 }))
+  const seen = new Set()
+  const unique = []
+  for (const entry of uploaded) {
+    if (seen.has(entry.key)) continue
+    seen.add(entry.key)
+    unique.push(entry)
+  }
+  unique.sort((left, right) => right.at - left.at)
+  const overflow = unique.slice(keep).map((entry) => entry.key)
   const removed = []
   for (const key of overflow) {
     try {
