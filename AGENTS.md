@@ -50,6 +50,8 @@ pnpm check # 较大改动时全仓检查
 
 完整规则见 `RELEASING.zh-CN.md`，日常只需记住三条：生命周期 `draft` → `testing` → `published` 单向推进，`publication` 凭据永久保留；首次发布须由工作流 `first_release` 或 `plan --first-release` 明确选择；改清单后跑 `pnpm release:docs` + `pnpm release:check`。只改 `site/`、根 README 或未打包测试时保持当前发布状态。
 
+发布认证走 **npm Trusted Publishing（OIDC）**：`npm-publish.yml` 用 `id-token: write` 领取短时凭据，不读 `NPM_TOKEN`；npmjs.com 上要为 `npm-publish.yml` 绑定 Trusted Publisher。bypass-2FA 直发 token 将于 2027 年 1 月停用，不要再新建。
+
 ## 运行时契约（重构时禁止顺手改名）
 
 以下字符串写进了已有备份包、已保存配置与 dsh-mnemon 页面目录，改动会导致旧备份不可恢复 / 配置丢失 / 标签页消失：

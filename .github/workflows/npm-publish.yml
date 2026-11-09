@@ -46,6 +46,21 @@ jobs:
           node-version: 24.21.0
           registry-url: https://registry.npmjs.org/
           cache: pnpm
+      # Trusted publishing (OIDC): npm CLI >= 11.5.1 is required. setup-node@v4
+      # writes //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} into the
+      # userconfig .npmrc; with no token set that empty placeholder makes npm
+      # fall back to token auth instead of the workflow's OIDC identity
+      # (ENEEDAUTH). The key is protected, so `npm config delete` cannot remove
+      # it — strip the line from every .npmrc setup-node may have touched.
+      - name: Prepare OIDC-only npm auth
+        if: steps.source.outputs.current == 'true'
+        run: |
+          npm install -g npm@latest
+          for rc in "$NPM_CONFIG_USERCONFIG" "$RUNNER_TEMP/.npmrc" "$HOME/.npmrc" ./.npmrc; do
+            if [ -n "$rc" ] && [ -f "$rc" ]; then
+              sed -i '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$rc"
+            fi
+          done
       - if: steps.source.outputs.current == 'true'
         run: pnpm install --frozen-lockfile
       - if: steps.source.outputs.current == 'true'
@@ -63,11 +78,11 @@ jobs:
           fi
       - if: steps.source.outputs.current == 'true'
         run: pnpm check
+      # No NODE_AUTH_TOKEN: authentication comes from the OIDC trusted publisher
+      # configured on npmjs.com for this exact workflow file (npm-publish.yml).
       - name: Publish changed packages and verify archives
         if: steps.source.outputs.current == 'true'
         run: node scripts/publish-npm.mjs publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Write package versions and the market index back to main
         if: steps.source.outputs.current == 'true'
         run: |

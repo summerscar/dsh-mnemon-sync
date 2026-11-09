@@ -39,9 +39,22 @@ pnpm release:fingerprint @summerscar/dsh-mnemon-sync # 只读诊断内容
 
 清单使用 `schemaVersion: 2`。本地校验对比工作树与 `HEAD`，发布 CI 会把 `RELEASE_STATE_BASE` 设为推送前提交。校验要求阶段只能经 `testing` 向前推进，且 `publication` 记录必须保留。
 
+## 使用 npm Trusted Publishing（OIDC）发布
+
+npm 正在弃用「绕过 2FA 且可直接发版」的 granular access token（2027 年 1 月起不能再用它直接 `npm publish`）。本仓库改用 **Trusted Publishing**：由 GitHub Actions 领取短时 OIDC 凭据，**不需要长期 `NPM_TOKEN` secret**。
+
+在 npmjs.com 上做一次配置（要求 npm CLI ≥ 11.5.1、Node ≥ 22.14；CI 用 Node 24.21.0 并会安装最新 npm）：
+
+1. npmjs.com → 包 `@summerscar/dsh-mnemon-sync` → **Settings** → **Trusted Publisher** → 选 GitHub Actions。
+2. 精确填写：用户 `summerscar`、仓库 `dsh-plugins`、workflow 文件名 `npm-publish.yml`（大小写敏感，必须带 `.yml`）。可在 **Allowed actions** 里额外允许 `npm publish`（默认只允许 `npm stage publish`）。
+3. **2 天内**完成一次成功发布，否则配置过期，需删除重建。
+4. 可选：把 **Publishing access** 设为「Require two-factor authentication and disallow tokens」，并撤销旧的自动化 token。
+
+`npm-publish.yml` 已具备 `id-token: write`、`actions/setup-node` 指向 npm registry，且会删掉 `setup-node` 写进 `.npmrc` 的空 `_authToken` 占位符（空占位符会让 npm 回退到 token 认证并报 `ENEEDAUTH`，而不使用 OIDC）。`package.json` 的 `repository` 必须与 GitHub 仓库大小写一致。provenance 证明自动生成。
+
 ## 本次重构后恢复自动发布的注意事项
 
-monorepo 重构改变了打包归档内容（新增双语 README、LICENSE、meta 变更）。推送到 `main` 会触发 `npm-publish.yml` 自动计划并发布有变化的包。**本次重构后的第一次推送前，必须取得用户明确授权**；发布后用 `npm view @summerscar/dsh-mnemon-sync@latest` 核对 `repository`、`homepage`、`license`、`engines`。提交、推送、npm 发布与站点部署均需用户明确授权。
+monorepo 重构改变了打包归档内容（新增双语 README、LICENSE、meta 变更）。推送到 `main` 会触发 `npm-publish.yml` 自动计划并发布有变化的包。**本次重构后的第一次推送前，必须取得用户明确授权**，并确认 npmjs.com 上已配置好 Trusted Publisher；发布后用 `npm view @summerscar/dsh-mnemon-sync@latest` 核对 `repository`、`homepage`、`license`、`engines`。提交、推送、npm 发布与站点部署均需用户明确授权。
 
 ## 计划内容与依赖
 

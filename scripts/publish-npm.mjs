@@ -213,6 +213,10 @@ export async function publish(root, packer, { lookup = readRegistry, fetcher = f
         console.log(`Already accepted: ${release.name}@${release.version}`);
       } else if (release.publish) {
         try {
+          // Authentication is supplied by the CI provider's OIDC identity
+          // (npm Trusted Publishing); no long-lived token is read here.
+          // --provenance is harmless with OIDC (npm adds it automatically),
+          // and keeping it makes local token-based runs produce provenance too.
           console.log(await submit(['publish', archive, '--json', '--ignore-scripts', '--access', 'public', '--provenance', '--tag', release.distTag, '--registry', registry]));
         } catch (error) {
           // Scanning can hide even exact-version metadata. A duplicate-version

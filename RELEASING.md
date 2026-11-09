@@ -38,9 +38,22 @@ pnpm release:fingerprint @summerscar/dsh-mnemon-sync # Diagnostic contents; read
 
 The registry uses `schemaVersion: 2`. Local checks compare the working tree with `HEAD`; publishing CI sets `RELEASE_STATE_BASE` to the pre-push commit. Validation requires forward stage progression through `testing` and preservation of `publication` records.
 
+## Publishing with npm Trusted Publishing (OIDC)
+
+npm is deprecating bypass-2FA granular tokens with direct-publish access (removed January 2027). This repository publishes through **Trusted Publishing** instead: GitHub Actions obtains a short-lived OIDC credential, so **no long-lived `NPM_TOKEN` secret is needed**.
+
+One-time setup on npmjs.com (npm CLI >= 11.5.1, Node >= 22.14 — CI uses Node 24.21.0 and installs latest npm):
+
+1. npmjs.com → package `@summerscar/dsh-mnemon-sync` → **Settings** → **Trusted Publisher** → GitHub Actions.
+2. Fill in exactly: owner/user `summerscar`, repository `dsh-plugins`, workflow filename `npm-publish.yml` (case-sensitive, must include `.yml`). Optionally set **Allowed actions** to allow `npm publish` in addition to the default `npm stage publish`.
+3. Complete one successful publish within **2 days**, or the configuration expires and must be recreated.
+4. Optionally set **Publishing access → Require two-factor authentication and disallow tokens**, then revoke any old automation tokens.
+
+`npm-publish.yml` already grants `id-token: write`, points `actions/setup-node` at the npm registry, and removes the empty `_authToken` placeholder that `setup-node` writes into `.npmrc` (an empty placeholder makes npm fall back to token auth and fail with `ENEEDAUTH` instead of using OIDC). The `repository` field in `package.json` must match the GitHub repository case-sensitively. Provenance attestations are generated automatically.
+
 ## Restoring automatic publishing after this refactor
 
-The monorepo refactor changes the packed archive (new dual-language READMEs, LICENSE, meta). A push to `main` triggers `npm-publish.yml`, which plans and publishes changed packages automatically. **Before the first push after this refactor, get explicit user authorization**; then verify `npm view @summerscar/dsh-mnemon-sync@latest` for `repository`, `homepage`, `license`, and `engines`. Commits, pushes, npm publication, and site deployment all require explicit user authorization.
+The monorepo refactor changes the packed archive (new dual-language READMEs, LICENSE, meta). A push to `main` triggers `npm-publish.yml`, which plans and publishes changed packages automatically. **Before the first push after this refactor, get explicit user authorization** and confirm the Trusted Publisher is configured on npmjs.com; then verify `npm view @summerscar/dsh-mnemon-sync@latest` for `repository`, `homepage`, `license`, and `engines`. Commits, pushes, npm publication, and site deployment all require explicit user authorization.
 
 ## Per-plan content and dependencies
 
