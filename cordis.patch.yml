@@ -1,3 +1,11 @@
+# Host entry: HTTP API, scheduler and backup engine. Needs only webServer.
 - insert:
     - id: mnemon-sync
       name: '@summerscar/dsh-mnemon-sync'
+    # Memory Source entry, mounted exactly like the shipped dsh-mnemon-source-*
+    # packages: only id + name here, and the module itself exports
+    # `inject = ['mnemonMemory']` so the Loader waits for that service.
+    # Kept as a separate Entry so a profile without dsh-mnemon still gets a
+    # working backup engine (just no tab).
+    - id: mnemon-sync-source
+      name: '@summerscar/dsh-mnemon-sync/source'

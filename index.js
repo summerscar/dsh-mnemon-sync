@@ -14,14 +14,13 @@
  * resident process, which is both simpler and compatible with the store.
  *
  * The browser half only ever sees JSON: credentials are masked on the way out
- * and are never echoed back by a read.
+ * and are never echoed back by a read. The memory Source that owns the page is
+ * a separate Cordis entry (./source.js), mounted by the bundle patch.
  */
 
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { SyncHistory, SyncScheduler } from './scheduler.js'
 import {
@@ -165,7 +164,6 @@ export function apply(ctx, config = {}) {
   // — not UI contributions. Standing up this minimal Source is what lets the
   // page use its own type instead of borrowing `memory-spaces`, which is the
   // only way its tab can highlight independently.
-  ctx.effect(() => registerSyncSource(ctx, dataRoot), 'mnemon-sync: memory source')
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
@@ -580,104 +578,6 @@ function restoreMaskedSecrets(incoming, previous) {
     target.sessionToken = previous.target.kind === 's3' ? previous.target.sessionToken : ''
   }
   return incoming
-}
-
-/**
- * Resolve the dsh-mnemon extension SDK.
- *
- * A bare `import('dsh-mnemon/extension-sdk')` is not enough here. Installed
- * from npm the package sits at `<profile>/node_modules/@summerscar/...`, so
- * Node's own ancestor walk would find dsh-mnemon beside it — but a *linked*
- * checkout lives outside the profile with no `node_modules` of its own, and
- * then the walk finds nothing.
- *
- * Both install shapes are therefore covered, cheapest first:
- *   1. From this module's own location, which is right for an npm install.
- *   2. From `DSH_PROFILE_DIR`, which is right for a linked checkout and is set
- *      in every shell and Host process a profile launches.
- *   3. From `DSH_HOME/profiles/web`, for a Host booted without that variable.
- *
- * Returns `undefined` when dsh-mnemon is not installed at all, which is a
- * supported configuration: the backup keeps working without its page.
- */
-async function loadExtensionSdk() {
-  // 1. Ask Node, anchored at this file. Resolves for an npm install.
-  try {
-    const resolver = createRequire(import.meta.url)
-    const resolved = resolver.resolve('dsh-mnemon/lib/extension-sdk.js')
-    return await import(pathToFileURL(resolved).href)
-  } catch {
-    // Not resolvable from here: fall through to the profile-anchored paths.
-  }
-
-  const candidates = []
-  const profileDir = process.env.DSH_PROFILE_DIR?.trim()
-  if (profileDir !== undefined && profileDir !== '') {
-    candidates.push(join(profileDir, 'node_modules', 'dsh-mnemon', 'lib', 'extension-sdk.js'))
-  }
-  // The Host that loads this plugin lives in the installation's own tree.
-  candidates.push(join(process.env.DSH_HOME ?? '', 'profiles', 'web', 'node_modules', 'dsh-mnemon', 'lib', 'extension-sdk.js'))
-  for (const candidate of candidates) {
-    if (candidate === '' || !existsSync(candidate)) continue
-    return import(pathToFileURL(candidate).href)
-  }
-  return undefined
-}
-
-/**
- * Install the sync Source into dsh-mnemon's composable-memory service.
- *
- * Returns a disposer, and does nothing at all when the Host runs without that
- * service (a profile with dsh-mnemon absent).
- */
-function registerSyncSource(ctx, dataRoot) {
-  if (typeof ctx.get !== 'function') return () => {}
-  const service = ctx.get('mnemonMemory')
-  if (service === undefined || service === null || typeof service.installContributions !== 'function') {
-    return () => {}
-  }
-  let disposed = false
-  let uninstall
-  void (async () => {
-    try {
-      const sdk = await loadExtensionSdk()
-      if (sdk === undefined || typeof sdk.defineMemorySource !== 'function') {
-        console.warn('mnemon-sync: dsh-mnemon extension SDK not found; the sync tab stays hidden')
-        return
-      }
-      const { createSyncSource, syncSourceManifest } = await import('./source.js')
-      if (disposed) return
-      // The manifest goes through the SDK validator so a contract drift in
-      // dsh-mnemon fails loudly here instead of at composition time.
-      const definition = sdk.defineMemorySource(createSyncSource({ ...syncSourceManifest }))
-      uninstall = service.installContributions({
-        plugin: {
-          apiVersion: 'dsh-mnemon/plugin/v1',
-          packageName: '@summerscar/dsh-mnemon-sync',
-          label: { en: 'Sync backup', 'zh-CN': '同步备份' },
-          description: {
-            en: 'Archive memory spaces to S3 or WebDAV.',
-            'zh-CN': '把记忆空间备份到 S3 或 WebDAV。',
-          },
-          roles: ['source'],
-          provides: [{ id: 'source' }],
-        },
-        sources: [definition],
-      }, { instanceId: 'mnemon-sync' })
-      if (disposed) {
-        uninstall?.()
-        uninstall = undefined
-      }
-    } catch (error) {
-      // A Host that cannot accept the Source must not take the backup down.
-      console.warn('mnemon-sync: could not register the sync source', error)
-    }
-  })()
-  return () => {
-    disposed = true
-    uninstall?.()
-    uninstall = undefined
-  }
 }
 
 /** Read a staging tree into the flat `{ path, bytes }` entries the ZIP writer takes. */
