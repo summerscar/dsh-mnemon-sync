@@ -256,6 +256,36 @@ test('skill roots are the two user-level ones, never a project root', async () =
   }
 })
 
+test('an archive is described by what it holds, not by the backup scope', async () => {
+  // Regression: the detail panel used to send the current backup scope to
+  // /inspect-archive, and the handler filtered the plan by it. Unticking a
+  // component in the scope then made a complete archive report that component
+  // as missing and refuse to offer it for restore — the zip was fine, only the
+  // question was wrong.
+  const { planArchive } = await import(new URL('../index.js', import.meta.url))
+  const files = new Map([
+    ['manifest.json', Buffer.from('{}')],
+    ['payload/data/default/mnemon.db', Buffer.from('db')],
+    ['payload/documents/index.json', Buffer.from('{}')],
+    ['payload/runtime/USER.md', Buffer.from('')],
+    ['payload/skills/ledger.json', Buffer.from('{}')],
+    ['payload/skill-files/user-dsh/a/SKILL.md', Buffer.from('# a')],
+    ['payload/unknown/x.txt', Buffer.from('x')],
+  ])
+  const plan = planArchive(files)
+
+  // Every component in the archive is described, with no scope involved.
+  assert.deepEqual(
+    [...new Set(plan.map((entry) => entry.component))].sort(),
+    ['documents', 'memory-spaces', 'runtime', 'skill-files', 'skills'],
+  )
+  // The manifest is metadata, and foreign paths stay out of the plan.
+  assert.equal(plan.some((entry) => entry.path === 'manifest.json'), false)
+  assert.equal(plan.some((entry) => entry.path.startsWith('payload/unknown/')), false)
+  // An empty file still counts: USER.md is legitimately 0 bytes.
+  assert.equal(plan.find((entry) => entry.path === 'payload/runtime/USER.md').bytes, 0)
+})
+
 test('both skill components start unselected', async () => {
   // A first backup must not quietly carry a machine's skills: restoring a skill
   // component writes into the skill roots, which is a migration, not a routine

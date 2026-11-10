@@ -55,7 +55,7 @@ const ARCHIVE_PREFIX = 'mnemon-sync-'
  * Read it from `GET /api/mnemon-sync/status` (`build`), or grep the response
  * before trusting any conclusion about whether a change took effect.
  */
-export const BUILD = 'mnemon-sync-2026-11-11.2'
+export const BUILD = 'mnemon-sync-2026-11-11.3'
 
 export const name = 'dsh-mnemon-sync'
 // `connection` gates every HTTP route below. `mnemonMemory` stays optional on
@@ -440,9 +440,17 @@ export function apply(ctx, config = {}) {
   /**
    * Download one archive from the configured target and describe its contents.
    *
-   * `components` is what the operator wants to restore; any requested component
-   * the archive does not carry is reported in `missing` with the reason, so the
-   * UI can warn before touching anything on disk.
+   * This describes *the archive*, never what the operator currently has ticked
+   * in the backup scope. Those are two different questions — "what is in this
+   * zip" and "what should a backup make" — and letting the scope answer the
+   * first one made a full archive look incomplete: untick a component in the
+   * scope, open an archive that does contain it, and the page would report it
+   * missing and refuse to offer it for restore.
+   *
+   * `components` is still accepted so a caller can ask "does this archive have
+   * these?" — anything asked for that the archive lacks lands in `missing` with
+   * a reason. Omit it to describe everything the archive holds, which is what
+   * the detail panel wants.
    */
   async function inspectArchive(current, key, requested) {
     if (key === '') throw new Error('an archive key is required')
@@ -472,17 +480,7 @@ export function apply(ctx, config = {}) {
     const expected = manifest.checksums?.files ?? {}
     const absent = Object.keys(expected).filter((relative) => !files.has(relative))
 
-    // The same plan a restore would carry out, reported here so the detail
-    // panel can show what pressing the button would write — and so the button
-    // exists at all. Keeping one plan shape means the preview and the work
-    // cannot drift apart.
-    const plan = []
-    for (const [relative, content] of files.entries()) {
-      if (relative === 'manifest.json') continue
-      const component = componentDirectoryOf(relative)
-      if (component === undefined || !wanted.includes(component)) continue
-      plan.push({ component, path: relative, bytes: content.length })
-    }
+    const plan = planArchive(files)
 
     return {
       key,
@@ -676,6 +674,28 @@ function countSpaces(manifest) {
     if (typeof entry.id === 'string') ids.add(entry.id)
   }
   return ids.size
+}
+
+/**
+ * Every file an archive carries, grouped by component, in payload order.
+ *
+ * Deliberately takes only the archive: what a zip holds is a property of the
+ * zip, not of whatever the backup scope happens to have ticked. Filtering here
+ * by the scope is what once made a complete archive report its unticked
+ * components as missing.
+ *
+ * @param {Map<string, Uint8Array>} files entries of a read archive
+ * @returns {Array<{component: string, path: string, bytes: number}>}
+ */
+export function planArchive(files) {
+  const plan = []
+  for (const [relative, content] of files.entries()) {
+    if (relative === 'manifest.json') continue
+    const component = componentDirectoryOf(relative)
+    if (component === undefined) continue
+    plan.push({ component, path: relative, bytes: content.length })
+  }
+  return plan
 }
 
 /**

@@ -792,9 +792,14 @@ window.__ModuleLoader__.load({
         setRestoreResult(null)
         setRestoreComponents(null)
         try {
+          // The archive is asked about on its own terms: what does this zip
+          // contain? Sending the backup scope here made an archive look
+          // incomplete whenever a component was simply unticked for backups —
+          // the zip still held it, but the detail panel reported it missing and
+          // the restore picker did not offer it.
           const body = await api('/inspect-archive', {
             method: 'POST',
-            body: JSON.stringify({ key, components: draft.components }),
+            body: JSON.stringify({ key }),
           })
           const archiveComponents = Array.isArray(body.archiveComponents) ? body.archiveComponents : []
           setInspection({ ...body, plan: body.plan || [] })
