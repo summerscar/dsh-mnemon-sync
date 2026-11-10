@@ -8,6 +8,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@summerscar/dsh-mnemon-sync?style=flat-square)](https://www.npmjs.com/package/@summerscar/dsh-mnemon-sync)
 [![license](https://img.shields.io/badge/license-SATA--2.1-blue?style=flat-square)](../LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![开放插件市场](https://img.shields.io/endpoint?url=https%3A%2F%2Fdshopen.org%2Fbadge%2F%2540summerscar%2Fdsh-mnemon-sync.json)](https://dshopen.org/zh/plugins/@summerscar/dsh-mnemon-sync/)
 
 [快速开始](#快速开始) · [功能](#功能) · [配置](#配置) · [常见问题](#常见问题) · [更新日志](../CHANGELOG.md)
 
