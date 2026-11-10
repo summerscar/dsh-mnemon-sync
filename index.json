@@ -53,13 +53,18 @@
           "webdav",
           "s3",
           "cloudflare-r2",
-          "dsh-plugins"
+          "dsh-plugins",
+          "skill",
+          "skills",
+          "skill-backup",
+          "skill-md",
+          "agent-skills"
         ]
       },
       "versions": [
         {
-          "version": "0.1.14",
-          "publishTimestamp": 1794338040,
+          "version": "0.1.15",
+          "publishTimestamp": 1794344459,
           "source": {
             "type": "npm"
           },
