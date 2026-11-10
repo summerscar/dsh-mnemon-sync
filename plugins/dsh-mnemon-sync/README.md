@@ -36,6 +36,8 @@ Restart DSH, then open the memory system to find "Sync backup". The plugin still
 
 Pick any subset of three components (all selected by default): memory spaces, project documents and runtime memory. Archives go to S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2, Aliyun OSS …) or a WebDAV server, on a timer from hourly to weekly. You can list the archives already on the target, inspect one, and restore only the components you choose. Restore previews by default; every file is SHA-256 verified before upload and again before restore, and live databases are copied through `node:sqlite`'s online `backup()`.
 
+OS bookkeeping files (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `._*` resource forks, editor `.swp` / `~` backups) are never packed. An older archive that carries them still restores — those entries are skipped rather than failing the run.
+
 Credentials live in a `0600` file outside the DSH profile and are never packed into an archive. No runtime dependencies outside Node.
 
 ## Configuration

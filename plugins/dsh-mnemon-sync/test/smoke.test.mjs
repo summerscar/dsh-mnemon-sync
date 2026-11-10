@@ -10,7 +10,7 @@
  */
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -159,6 +159,57 @@ test('settings keep the override optional and the state root fixed', async () =>
   assert.equal(normalizeSettings({ mnemonHome: null }).mnemonHome, '')
   // Existing saved settings predate this field and must keep loading.
   assert.equal(readSettings('/tmp/definitely-not-a-mnemon-home').mnemonHome, '')
+})
+
+test('archive paths resolve on Windows, where the separator is not "/"', async () => {
+  // Regression: containment used to be `destination.startsWith(root + '/')`.
+  // ZIP entry names always use '/', but resolve() returns the platform
+  // separator, so on Windows that comparison was false for *every* entry and
+  // the first file in the archive blocked the whole restore. Checking
+  // containment through path.relative keeps it correct on both platforms.
+  const { destinationFor } = await import(new URL('../index.js', import.meta.url))
+  const home = resolve(tmpdir(), 'mnemon-home')
+
+  // A normal payload file lands exactly where the component directory says.
+  assert.equal(destinationFor(home, 'payload/data/default/mnemon.db'),
+    resolve(home, 'data', 'default', 'mnemon.db'))
+  assert.equal(destinationFor(home, 'payload/documents/index.json'),
+    resolve(home, 'documents', 'index.json'))
+  assert.equal(destinationFor(home, 'payload/runtime/USER.md'),
+    resolve(home, 'runtime', 'USER.md'))
+
+  // Finder's junk file is a legitimate payload path: the restore must not treat
+  // it as an escape. Whether it is written is a separate, higher-level decision.
+  assert.notEqual(destinationFor(home, 'payload/data/.DS_Store'), undefined)
+
+  // Escapes and non-component roots stay rejected.
+  for (const bad of [
+    'payload/data/../state/mnemon-sync.json',
+    'payload/data/../../evil.txt',
+    'payload/state/mnemon-sync.json',
+    'payload/skills/x.json',
+    'payload/data',
+    'payload/data/',
+    'manifest.json',
+  ]) {
+    assert.equal(destinationFor(home, bad), undefined, `${bad} must be rejected`)
+  }
+})
+
+test('OS bookkeeping files never enter an archive and never block a restore', async () => {
+  // `.DS_Store`, `Thumbs.db`, `._*` resource forks and editor swap files are
+  // not Mnemon data. They are excluded when listing and collecting, so an
+  // archive stays portable; archives made before that filter still carry them,
+  // and the restore skips them instead of failing on Finder's cache.
+  const { isSystemJunk } = await import(new URL('../snapshot.js', import.meta.url))
+  for (const junk of ['.DS_Store', '.ds_store', 'Thumbs.db', 'desktop.ini',
+    '.directory', '._resource', 'notes.md.swp', 'draft.md~']) {
+    assert.equal(isSystemJunk(junk), true, `${junk} should be treated as junk`)
+  }
+  for (const real of ['mnemon.db', 'index.json', 'USER.md', 'MEMORY.md',
+    'a-real-document.md', 'spaces.json']) {
+    assert.equal(isSystemJunk(real), false, `${real} must not be filtered`)
+  }
 })
 
 test('locale dictionaries and screenshots exist and are valid JSON', () => {

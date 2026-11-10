@@ -21,7 +21,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, hostname } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import { SyncHistory, SyncScheduler } from './scheduler.js'
 import {
@@ -29,6 +29,7 @@ import {
   MEMORY_SPACE_DATABASE_FILE,
   buildSnapshot,
   inspectHome,
+  isSystemJunk,
   readSpaceNames,
   verifySnapshot,
 } from './snapshot.js'
@@ -546,12 +547,23 @@ export function apply(ctx, config = {}) {
     // whose path does not resolve into a component directory (a foreign file
     // smuggled into the archive) are rejected outright rather than skipped:
     // a listing that silently drops entries would hide what a restore does.
+    //
+    // OS bookkeeping files are the one exception. Archives made before the
+    // backup side filtered them still carry `.DS_Store`, `Thumbs.db` and the
+    // like, and refusing the whole restore over Finder's window-position cache
+    // would be absurd: the data is fine, the file just has no business being
+    // written back. They are skipped and reported, never a hard failure.
     const plan = []
+    const ignored = []
     for (const component of restorable) {
       for (const [relative, content] of files.entries()) {
         if (relative === 'manifest.json') continue
         const director = componentDirectoryOf(relative)
         if (director !== component) continue
+        if (isSystemJunk(relative.slice(relative.lastIndexOf('/') + 1))) {
+          ignored.push({ path: relative, reason: 'OS bookkeeping file, never restored' })
+          continue
+        }
         const destination = destinationFor(home, relative)
         if (destination === undefined) {
           throw new Error(`archive entry cannot be restored safely: ${relative}`)
@@ -569,6 +581,7 @@ export function apply(ctx, config = {}) {
         archiveComponents: present,
         requested,
         missing,
+        ...ignored.length === 0 ? {} : { ignored },
         plan: plan.map(({ relative, bytes: size }) => ({ path: relative, bytes: size })),
         planBytes: plan.reduce((total, entry) => total + entry.bytes, 0),
       }
@@ -607,6 +620,7 @@ export function apply(ctx, config = {}) {
       archiveComponents: present,
       requested,
       missing,
+      ...ignored.length === 0 ? {} : { ignored },
       restored: restorable,
       written,
       writtenBytes: written.reduce((total, entry) => total + entry.bytes, 0),
@@ -680,10 +694,15 @@ const RESTORE_DIRECTORIES = {
  * resolves inside the home yet would overwrite the stored credentials, so the
  * first path segment after `payload/` is matched exactly against the three
  * component names and no `..` or nested separator survives.
+ *
+ * The containment check asks `path.relative` rather than comparing string
+ * prefixes. ZIP entry names always use `/`, while `resolve()` returns the
+ * platform separator, so a literal `startsWith(root + '/')` is false on
+ * Windows for *every* entry and blocked the whole restore there.
  */
-function destinationFor(home, relative) {
-  if (!relative.startsWith('payload/')) return undefined
-  const stripped = relative.slice('payload/'.length)
+export function destinationFor(home, entryName) {
+  if (!entryName.startsWith('payload/')) return undefined
+  const stripped = entryName.slice('payload/'.length)
   const separator = stripped.indexOf('/')
   if (separator <= 0) return undefined
   const topDirectory = stripped.slice(0, separator)
@@ -693,7 +712,9 @@ function destinationFor(home, relative) {
   if (rest === '' || rest.includes('\0') || rest.split('/').includes('..')) return undefined
   const destination = resolve(home, componentDirectory, ...rest.split('/'))
   const root = resolve(home, componentDirectory)
-  if (!destination.startsWith(`${root}/`)) return undefined
+  // Inside the component directory *and* not the directory itself.
+  const inside = relative(root, destination)
+  if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) return undefined
   return destination
 }
 

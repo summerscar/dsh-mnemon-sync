@@ -45,6 +45,25 @@ export const COMPONENTS = ['memory-spaces', 'documents', 'runtime']
 /** Files inside a space directory that are regenerable and never worth carrying. */
 const VOLATILE_SUFFIXES = ['-wal', '-shm', '-journal']
 
+/**
+ * OS bookkeeping files that are never Mnemon data, whatever directory they
+ * appear in: Finder's `.DS_Store` and `._*` resource forks, Explorer's
+ * `Thumbs.db` / `desktop.ini`, and the editor swap/backup leftovers that turn
+ * up next to Markdown. They are excluded when listing and when collecting, so
+ * an archive stays portable and a restore never writes desktop junk into the
+ * memory directory.
+ */
+const SYSTEM_JUNK = new Set(['.ds_store', 'thumbs.db', 'desktop.ini', '.directory'])
+const JUNK_PREFIXES = ['._']
+const JUNK_SUFFIXES = ['.swp', '.swx', '~']
+
+export function isSystemJunk(name) {
+  const lower = name.toLowerCase()
+  if (SYSTEM_JUNK.has(lower)) return true
+  if (JUNK_PREFIXES.some((prefix) => lower.startsWith(prefix))) return true
+  return JUNK_SUFFIXES.some((suffix) => name.endsWith(suffix))
+}
+
 export function isComponent(value) {
   return COMPONENTS.includes(value)
 }
@@ -73,7 +92,9 @@ export function inspectHome(home) {
     for (const entry of readdirSync(dataRoot, { withFileTypes: true })) {
       const full = join(dataRoot, entry.name)
       if (entry.isFile()) {
-        extras.push({ name: entry.name, bytes: safeSize(full) })
+        // An OS bookkeeping file beside the space directories is not Mnemon
+        // data; leaving it out keeps archives portable across machines.
+        if (!isSystemJunk(entry.name)) extras.push({ name: entry.name, bytes: safeSize(full) })
         continue
       }
       if (!entry.isDirectory()) continue
@@ -145,6 +166,7 @@ function listRegularFiles(directory) {
   const files = []
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (!entry.isFile()) continue
+    if (isSystemJunk(entry.name)) continue
     if (VOLATILE_SUFFIXES.some((suffix) => entry.name.endsWith(suffix))) continue
     files.push(entry.name)
   }
@@ -155,6 +177,9 @@ function listRegularFiles(directory) {
 function collectRelativeFiles(root, prefix = '') {
   const files = []
   for (const entry of readdirSync(join(root, prefix), { withFileTypes: true })) {
+    // Skipped while descending, not merely filtered from the result, so a junk
+    // directory never costs a second pass.
+    if (isSystemJunk(entry.name)) continue
     const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
     if (entry.isDirectory()) {
       files.push(...collectRelativeFiles(root, relative))

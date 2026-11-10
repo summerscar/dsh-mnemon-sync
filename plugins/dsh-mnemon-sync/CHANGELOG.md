@@ -10,6 +10,8 @@
 
 **修复**
 
+- 恢复在 Windows 上必然失败，报 `archive entry cannot be restored safely: <第一个文件>`。路径归属判断原先写成 `destination.startsWith(root + '/')`：ZIP 条目名固定用 `/`，而 `resolve()` 返回平台分隔符，于是 Windows 上这个比较对**每一条**都是 false，恢复在遇到第一个文件时就被拦下（`.DS_Store` 只是恰好排在最前）。改用 `path.relative` 判断包含关系，两个平台都正确。
+- 系统杂物文件不再进备份包：`.DS_Store`、`Thumbs.db`、`desktop.ini`、`._*` 资源分叉、编辑器 `.swp` / `~` 备份在列举与收集时就被排除。旧备份包里的这类文件在恢复时跳过并记入 `ignored`，不再让整个恢复失败。
 - Windows（含桌面版）上数据根目录被解析成 `<profile 目录>/.mnemon`，页面显示的不是真实记忆目录。默认值原先读 `process.env.HOME`，而 Windows 只用 `USERPROFILE`，拿到 `undefined` 后 `join('', '.mnemon')` 退化成相对路径 `.mnemon`，再被 `resolve()` 锚到了进程工作目录。改用 `os.homedir()`，与 dsh-mnemon 自己解析 `~/.mnemon` 的方式一致；`MNEMON_DATA_DIR` 与 `dataRoot` 里的 `~` / `~\` 现在也会展开（此前会拼成字面量 `~` 目录）。
 
 **变更**
