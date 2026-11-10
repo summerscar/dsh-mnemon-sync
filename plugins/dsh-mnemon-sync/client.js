@@ -31,11 +31,15 @@ window.__ModuleLoader__.load({
     const PAGE_ID = 'sync'
 
     // The three components dsh-mnemon groups its own Pack by. Order matches the
-    // order its panel lists them, so the page reads the same way.
+    // order its panel lists them, so the page reads the same way. The two skill
+    // components come after that block: they belong to this plugin's own scope,
+    // and appending keeps every existing row where a reader already looks.
     const COMPONENT_ROWS = [
-      { id: 'memory-spaces', label: 'componentMemorySpaces' },
-      { id: 'documents', label: 'componentDocuments' },
-      { id: 'runtime', label: 'componentRuntime' },
+      { id: 'memory-spaces', label: 'componentMemorySpaces', hint: 'hintMemorySpaces' },
+      { id: 'documents', label: 'componentDocuments', hint: 'hintDocuments' },
+      { id: 'runtime', label: 'componentRuntime', hint: 'hintRuntime' },
+      { id: 'skills', label: 'componentSkills', hint: 'hintSkills' },
+      { id: 'skill-files', label: 'componentSkillFiles', hint: 'hintSkillFiles' },
     ]
 
     const zh = {
@@ -53,6 +57,23 @@ window.__ModuleLoader__.load({
       componentMemorySpaces: '记忆空间',
       componentDocuments: '项目档案',
       componentRuntime: '运行时记忆',
+      componentSkills: '技能数据（mnemon）',
+      componentSkillFiles: '技能文件（SKILL.md）',
+      skillRoots: '技能根目录',
+      skillRootsHint: '只备份这些目录下真实的 SKILL.md 树；不存在的不进包。',
+      skillRootsMissing: '不存在',
+      skillRootCount: '{count} 个技能',
+      // What a tick actually covers. The two skill components are the only ones
+      // whose contents a reader cannot infer from the name, so each row spells
+      // out its own folder and its own scope.
+      hintMemorySpaces: '记忆数据库与空间清单',
+      hintDocuments: '项目档案 Markdown 与索引',
+      hintRuntime: '运行时记忆与两份投影',
+      hintSkills: 'mnemon 的进化记录：ledger / 评测 / 版本 / 轨迹',
+      hintSkillFiles: '用户级技能目录，不含项目内技能',
+      skillsPath: '读取目录：',
+      skillFilesScope: '范围：{roots}（项目内 .dsh/skills、.agents/skills 随 git，不进备份）',
+      skillFilesNoRoot: '两个用户级技能根都不存在，勾选后会跳过',
       componentEmpty: '暂无数据',
       componentFiles: '{count} 个文件',
       componentSpaceOne: '1 个空间',
@@ -76,6 +97,8 @@ window.__ModuleLoader__.load({
       restoreSpacesNote: '{count} 个文件（{size}），将覆盖本地记忆空间数据库',
       restoreDocumentsNote: '{count} 个文件（{size}），将覆盖项目档案',
       restoreRuntimeNote: '{count} 个文件（{size}），将覆盖运行时记忆',
+      restoreSkillsNote: '{count} 个文件（{size}），将覆盖 mnemon 技能数据（ledger / 版本 / 轨迹）',
+      restoreSkillFilesNote: '{count} 个文件（{size}），将覆盖技能根目录下的 SKILL.md 与附带文件',
       restoreDryRun: '预览恢复',
       restoreApply: '执行恢复',
       restoring: '恢复中…',
@@ -138,6 +161,7 @@ window.__ModuleLoader__.load({
       error: '错误',
       loading: '读取中…',
       loadFailed: '读取失败',
+      build: '运行版本：',
       retry: '重试',
       credentials: '凭据',
       credentialsNote: '凭据保存在记忆目录下的 0600 文件里，不会写进 DSH 配置，也不会被打包进备份。',
@@ -160,6 +184,20 @@ window.__ModuleLoader__.load({
       componentMemorySpaces: 'Memory spaces',
       componentDocuments: 'Project documents',
       componentRuntime: 'Runtime memory',
+      componentSkills: 'Skill data (mnemon)',
+      componentSkillFiles: 'Skill files (SKILL.md)',
+      skillRoots: 'Skill roots',
+      skillRootsHint: 'Only the real SKILL.md trees under these directories are backed up; missing ones stay out of the archive.',
+      skillRootsMissing: 'missing',
+      skillRootCount: '{count} skills',
+      hintMemorySpaces: 'Memory databases and the space registry',
+      hintDocuments: 'Project document Markdown and its index',
+      hintRuntime: 'Runtime memory and both projections',
+      hintSkills: 'mnemon evolution records: ledger / evals / versions / trajectories',
+      hintSkillFiles: 'The user-level skill folders, not project skills',
+      skillsPath: 'Reading: ',
+      skillFilesScope: 'Scope: {roots} (project .dsh/skills and .agents/skills travel with git and stay out)',
+      skillFilesNoRoot: 'Neither user-level skill root exists yet, so this would be skipped',
       componentEmpty: 'no data',
       componentFiles: '{count} files',
       componentSpaceOne: '1 space',
@@ -183,6 +221,8 @@ window.__ModuleLoader__.load({
       restoreSpacesNote: '{count} files ({size}); overwrites local memory space databases',
       restoreDocumentsNote: '{count} files ({size}); overwrites project documents',
       restoreRuntimeNote: '{count} files ({size}); overwrites runtime memory',
+      restoreSkillsNote: '{count} files ({size}); overwrites mnemon skill data (ledger / versions / trajectories)',
+      restoreSkillFilesNote: '{count} files ({size}); overwrites the SKILL.md trees under the skill roots',
       restoreDryRun: 'Preview restore',
       restoreApply: 'Restore now',
       restoring: 'Restoring2026',
@@ -245,6 +285,7 @@ window.__ModuleLoader__.load({
       error: 'Error',
       loading: 'Loading\u2026',
       loadFailed: 'Could not load',
+      build: 'Running build: ',
       retry: 'Retry',
       credentials: 'Credentials',
       credentialsNote: 'Stored in a 0600 file inside the memory directory \u2014 never in DSH config, never inside a backup.',
@@ -259,29 +300,25 @@ window.__ModuleLoader__.load({
     /**
      * The one-line summary under a component's name.
      *
-     * Memory spaces are counted rather than listed: a home with many spaces
-     * would otherwise push the component's own name out of the row. Files are
-     * counted the same way, so both rows read as "how much is here".
+     * Memory spaces name themselves rather than only counting: the count alone
+     * left the actual names hidden behind a hover tooltip, which is invisible on
+     * touch and easy to miss on a desktop. Files are still counted, because a
+     * hundred filenames would push the component's own name out of the row.
      */
-    function componentDetail(t, id, part) {
+    function componentDetail(t, id, part, spaceNames) {
       if (id === 'memory-spaces') {
         const spaces = part.spaces || []
         if (spaces.length === 0) return t('componentEmpty')
-        return spaceCountLabel(t, spaces.length)
+        const names = spaces.map((space) => (spaceNames && spaceNames[space.id]) || space.id)
+        return `${spaceCountLabel(t, spaces.length)} · ${names.join('、')}`
       }
-      const files = part.files || []
+      // Skill data and skill files report a flat file list like documents and
+      // runtime memory do, so they share this branch. `part` is tolerated as
+      // absent: an older Host answers without the component and must not blank
+      // the whole scope list.
+      const files = (part && part.files) || []
       if (files.length === 0) return t('componentEmpty')
       return t('componentFiles', { count: files.length })
-    }
-
-    /** The same summary with every name spelled out, shown on hover. */
-    function componentTitle(id, part, spaceNames) {
-      if (id !== 'memory-spaces') return undefined
-      const spaces = part.spaces || []
-      if (spaces.length === 0) return undefined
-      return spaces
-        .map((space) => (spaceNames && spaceNames[space.id]) || space.id)
-        .join('\n')
     }
 
     /**
@@ -300,6 +337,8 @@ window.__ModuleLoader__.load({
       if (component === 'memory-spaces') return t('restoreSpacesNote', { count, size })
       if (component === 'documents') return t('restoreDocumentsNote', { count, size })
       if (component === 'runtime') return t('restoreRuntimeNote', { count, size })
+      if (component === 'skills') return t('restoreSkillsNote', { count, size })
+      if (component === 'skill-files') return t('restoreSkillFilesNote', { count, size })
       return t('componentFiles', { count })
     }
 
@@ -313,6 +352,8 @@ window.__ModuleLoader__.load({
       if (component === 'memory-spaces') return t('componentMemorySpaces')
       if (component === 'documents') return t('componentDocuments')
       if (component === 'runtime') return t('componentRuntime')
+      if (component === 'skills') return t('componentSkills')
+      if (component === 'skill-files') return t('componentSkillFiles')
       return component
     }
 
@@ -534,6 +575,40 @@ window.__ModuleLoader__.load({
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
+      },
+      // The "what goes in" line sits directly under the name and carries more
+      // weight than the live counts below it: a reader deciding whether to tick
+      // a box needs the scope, not the current size.
+      componentHint: {
+        fontSize: 11.5,
+        lineHeight: '17px',
+        color: 'var(--dsw-alias-label-secondary)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      },
+      // A real path or root list. Allowed to wrap and break anywhere: these are
+      // the one thing on the row that must never be truncated, because a cut-off
+      // path is worse than no path.
+      componentPath: {
+        fontSize: 11,
+        lineHeight: '16px',
+        color: 'var(--dsw-alias-label-tertiary)',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        overflowWrap: 'anywhere',
+      },
+      componentWarning: {
+        fontSize: 11,
+        lineHeight: '16px',
+        color: 'var(--dsw-alias-state-warn-primary, #c08a2e)',
+      },
+      buildNote: {
+        margin: 0,
+        paddingTop: 6,
+        fontSize: 11,
+        color: 'var(--dsw-alias-label-tertiary)',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        overflowWrap: 'anywhere',
       },
       componentSize: {
         fontSize: 11.5,
@@ -879,14 +954,32 @@ window.__ModuleLoader__.load({
                 const part = state.state.components ? state.state.components[row.id] : undefined
                 const available = part ? part.available === true : false
                 const checked = (draft.components || []).includes(row.id)
-                // The row shows a count, never the full list: a home with a dozen
-                // spaces would push the row's own name out of view. The names live
-                // in the title attribute, so hovering answers "which ones?".
-                const detail = available ? componentDetail(t, row.id, part) : t('componentEmpty')
+                const detail = available ? componentDetail(t, row.id, part, state.spaceNames) : t('componentEmpty')
+                // Every row answers the same two questions in the same order:
+                // what this component is ("what goes in"), then how much of it
+                // is here right now. The skill rows carry a third line naming
+                // the actual folder, because "skill data" and "skill files" are
+                // the only two a reader cannot place from the name alone.
+                const sub = [
+                  h('span', { key: 'hint', style: styles.componentHint }, t(row.hint)),
+                  h('span', { key: 'detail', style: styles.componentDetail }, detail),
+                ]
+                const path = row.id === 'skills' && part && part.path ? part.path : undefined
+                if (path !== undefined) {
+                  sub.push(h('span', { key: 'path', style: styles.componentPath }, `${t('skillsPath')}${path}`))
+                }
+                if (row.id === 'skill-files') {
+                  const present = (state.state.skillRoots || []).filter((root) => root && root.exists === true)
+                  sub.push(h('span', {
+                    key: 'scope',
+                    style: present.length === 0 ? styles.componentWarning : styles.componentPath,
+                  }, present.length === 0
+                    ? t('skillFilesNoRoot')
+                    : t('skillFilesScope', { roots: present.map((root) => root.path).join(' · ') })))
+                }
                 return h('label', {
                   key: row.id,
                   style: styles.componentRow,
-                  title: available ? componentTitle(row.id, part, state.spaceNames) : undefined,
                 },
                   h('input', {
                     type: 'checkbox',
@@ -895,12 +988,45 @@ window.__ModuleLoader__.load({
                   }),
                   h('span', { style: styles.componentText },
                     h('strong', { style: styles.componentName }, t(row.label)),
-                    h('span', { style: styles.componentDetail }, detail),
+                    ...sub,
                   ),
                   h('span', { style: styles.componentSize }, available ? humanBytes(part.totalBytes) : '—'),
                 )
               }),
             ),
+
+            // The user-level skill roots, listed because they are what "skill
+            // files" actually means: a path the operator would not guess, and
+            // one that may simply not exist on this machine. A missing root is
+            // called out rather than hidden, since it explains a smaller
+            // archive. Project-level roots are deliberately absent: a project's
+            // skills travel with its git repository, so this backup only owns
+            // the user's own layer.
+            //
+            // Everything here tolerates an older Host: no `skillRoots` field at
+            // all renders nothing, and the block is skipped instead of throwing
+            // a hole into the scope section.
+            (Array.isArray(state.state.skillRoots) && state.state.skillRoots.length > 0)
+              ? h('div', { style: styles.componentList },
+                  h('h4', { style: styles.groupTitle }, t('skillRoots')),
+                  h('p', { style: styles.note }, t('skillRootsHint')),
+                  state.state.skillRoots.map((root, index) => {
+                    const kind = root && root.kind ? String(root.kind) : ''
+                    const path = root && root.path ? String(root.path) : ''
+                    const exists = root != null && root.exists === true
+                    const skills = root == null || root.skills == null ? 0 : root.skills
+                    return h('div', { key: `${kind}:${path}:${index}`, style: styles.row },
+                      h('strong', { style: styles.componentName }, kind),
+                      h('span', { style: { ...styles.code, flex: '1 1 220px' } }, path),
+                      exists
+                        ? h('span', { style: { ...styles.pill, ...styles.pillOk } },
+                            `${humanBytes(root == null ? 0 : root.bytes)} · ${t('skillRootCount', { count: skills })}`)
+                        : h('span', { style: { ...styles.pill, ...styles.pillBad } }, t('skillRootsMissing')),
+                    )
+                  }),
+                )
+              : null,
+
             h('p', { style: styles.note }, t('scopePath')),
             h(TextField, {
               label: t('dataRootField'),
@@ -1169,6 +1295,14 @@ window.__ModuleLoader__.load({
                 ),
               ),
         ),
+
+        // The build of the Host module behind this page. Shown at the very
+        // bottom, on purpose: it is a diagnostic, not something to read on every
+        // visit, but when a change seems not to have taken effect it saves a
+        // trip to the shell — HMR reloads the Host half while the open page keeps
+        // running, so "the page looks fine" says nothing about which code answers.
+        state.build == null ? null : h('p', { style: styles.buildNote },
+          `${t('build')}${String(state.build)}`),
       )
     }
 

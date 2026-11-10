@@ -26,6 +26,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { SyncHistory, SyncScheduler } from './scheduler.js'
 import {
   COMPONENTS,
+  COMPONENT_DIRECTORIES,
   MEMORY_SPACE_DATABASE_FILE,
   buildSnapshot,
   inspectHome,
@@ -33,12 +34,28 @@ import {
   readSpaceNames,
   verifySnapshot,
 } from './snapshot.js'
+import { skillFileDestination, skillRoots, skillsDataDestination } from './skills.js'
 import { createZip, readZip } from './zip.js'
 import { deleteArchive, downloadArchive, listArchives, normalizeTarget, uploadArchive } from './targets.js'
 import { maskSettings, normalizeSettings, readSettings, settingsPath, writeSettings } from './store.js'
 
 const API_PREFIX = '/api/mnemon-sync'
 const ARCHIVE_PREFIX = 'mnemon-sync-'
+
+/**
+ * Which build of this module is actually loaded.
+ *
+ * Bump the suffix on every change to the Host half. It answers a question no
+ * other signal can: HMR reloads this file without restarting the container, so
+ * a browser refresh, a 200 from the API and a working page all stay true while
+ * the *old* module is still the one running. Telling "the new code is live"
+ * apart from "the old code happens to answer" needs a value that only the new
+ * source can produce, which is exactly this constant.
+ *
+ * Read it from `GET /api/mnemon-sync/status` (`build`), or grep the response
+ * before trusting any conclusion about whether a change took effect.
+ */
+export const BUILD = 'mnemon-sync-2026-11-11.2'
 
 export const name = 'dsh-mnemon-sync'
 // `connection` gates every HTTP route below. `mnemonMemory` stays optional on
@@ -304,14 +321,22 @@ export function apply(ctx, config = {}) {
     if (req.method === 'GET' && route === '/status') {
       const current = settings()
       const home = resolveEffectiveHome(current.mnemonHome, config)
+      const state = inspectHome(home)
       sendJson(res, 200, {
+        // The identity of the running module, not of the files on disk. See the
+        // comment on BUILD: this is the only field that can prove a reload.
+        build: BUILD,
         dataRoot: join(home, 'data'),
         stateHome,
         settingsPath: settingsPath(stateHome),
         workRoot,
         home,
         hostHome: resolveHome(config),
-        state: inspectHome(home),
+        state,
+        // Hoisted out of `components['skill-files']` because the roots are worth
+        // showing even when the component itself is empty — "neither root has a
+        // skill yet" is a useful thing to read before pressing backup.
+        skillRoots: state.skillRoots,
         settings: maskSettings(current),
         scheduler: scheduler.snapshot(current),
 
@@ -344,11 +369,11 @@ export function apply(ctx, config = {}) {
           const saved = writeSettings(stateHome, normalizeSettings(restoreMaskedSecrets(body.settings, settings())))
           scheduler.refresh()
           const result = await scheduler.runNow('manual')
-          sendJson(res, 200, { result, settings: maskSettings(saved) })
+          sendJson(res, 200, { build: BUILD, result, settings: maskSettings(saved) })
           return
         }
         const result = await scheduler.runNow('manual')
-        sendJson(res, 200, { result })
+        sendJson(res, 200, { build: BUILD, result })
       } catch (error) {
         sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
       }
@@ -555,6 +580,9 @@ export function apply(ctx, config = {}) {
     // written back. They are skipped and reported, never a hard failure.
     const plan = []
     const ignored = []
+    // Resolved once: every entry is mapped against the same root set, so a
+    // restore cannot write half a skill into one root and half into another.
+    const roots = skillRoots()
     for (const component of restorable) {
       for (const [relative, content] of files.entries()) {
         if (relative === 'manifest.json') continue
@@ -564,7 +592,7 @@ export function apply(ctx, config = {}) {
           ignored.push({ path: relative, reason: 'OS bookkeeping file, never restored' })
           continue
         }
-        const destination = destinationFor(home, relative)
+        const destination = destinationFor(home, relative, roots)
         if (destination === undefined) {
           throw new Error(`archive entry cannot be restored safely: ${relative}`)
         }
@@ -628,16 +656,6 @@ export function apply(ctx, config = {}) {
   }
 }
 
-/** Why a component the operator asked for never made it into an archive. */
-/**
- * Which component an archive path belongs to.
- *
- * The payload layout is fixed by `buildSnapshot`: `payload/data/...` holds
- * memory spaces, `payload/documents/...` project documents and
- * `payload/runtime/...` runtime memory. Reading the component back off the path
- * keeps the restore plan aligned with what was actually written, rather than
- * trusting a second list that could drift.
- */
 /**
  * How many memory spaces a manifest holds.
  *
@@ -660,54 +678,54 @@ function countSpaces(manifest) {
   return ids.size
 }
 
+/**
+ * Which component an archive path belongs to, read back off the payload layout
+ * `buildSnapshot` writes. Deriving it from the path rather than trusting a
+ * second list means the restore plan cannot drift from what was captured.
+ */
 function componentDirectoryOf(relative) {
   if (!relative.startsWith('payload/')) return undefined
   const [, directory] = relative.split('/')
-  if (directory === 'data') return 'memory-spaces'
-  if (directory === 'documents') return 'documents'
-  if (directory === 'runtime') return 'runtime'
-  return undefined
+  return COMPONENT_BY_DIRECTORY[directory]
 }
 
-/**
- * Archive payload directories that a restore may write, mapped to the live
- * directories they land in. `state/` is deliberately absent: it holds this
- * plugin's credentials and dsh-mnemon's machine identity, and no backup
- * component backs it up.
- */
-const RESTORE_DIRECTORIES = {
-  data: 'data',
-  documents: 'documents',
-  runtime: 'runtime',
-}
+const COMPONENT_BY_DIRECTORY = Object.fromEntries(
+  Object.entries(COMPONENT_DIRECTORIES).map(([component, directory]) => [directory, component]),
+)
 
 /**
- * Where one archive path lands in the Mnemon home, or `undefined` when the
- * path is not part of a restorable component.
+ * Where one archive path lands, or `undefined` when the path is not part of a
+ * restorable component.
  *
- * The check is deliberately stricter than "stays inside the home": a restore
- * must only ever touch the three component directories (`data/`, `documents/`,
- * `runtime/`). Everything else in the home — `state/` with this plugin's own
- * credentials and dsh-mnemon's machine identity, `skills/`, the archive
- * workroot — must be unreachable from an archive, because the archive is
- * untrusted data. A zip entry like `payload/data/../state/mnemon-sync.json`
- * resolves inside the home yet would overwrite the stored credentials, so the
- * first path segment after `payload/` is matched exactly against the three
- * component names and no `..` or nested separator survives.
+ * A restore must only ever touch the component directories a backup produced.
+ * Everything else in the Mnemon home — `state/` with this plugin's own
+ * credentials and dsh-mnemon's machine identity, the archive workroot — must be
+ * unreachable from an archive, because the archive is untrusted data. A zip
+ * entry like `payload/data/../state/mnemon-sync.json` resolves inside the home
+ * yet would overwrite the stored credentials, so the first path segment after
+ * `payload/` is matched exactly against the known component directories and no
+ * `..` or nested separator survives.
+ *
+ * `skill-files` is the exception to "lands in the home": its payload names a
+ * skill root *kind*, which `skills.js` resolves against the roots that exist on
+ * this machine. A `roots` argument is accepted so a caller can resolve once and
+ * reuse the same set for every entry.
  *
  * The containment check asks `path.relative` rather than comparing string
  * prefixes. ZIP entry names always use `/`, while `resolve()` returns the
  * platform separator, so a literal `startsWith(root + '/')` is false on
  * Windows for *every* entry and blocked the whole restore there.
  */
-export function destinationFor(home, entryName) {
+export function destinationFor(home, entryName, roots = skillRoots()) {
   if (!entryName.startsWith('payload/')) return undefined
+  const component = componentDirectoryOf(entryName)
+  if (component === undefined) return undefined
+  if (component === 'skill-files') return skillFileDestination(roots, entryName)
+  if (component === 'skills') return skillsDataDestination(home, entryName)
   const stripped = entryName.slice('payload/'.length)
   const separator = stripped.indexOf('/')
   if (separator <= 0) return undefined
-  const topDirectory = stripped.slice(0, separator)
-  const componentDirectory = RESTORE_DIRECTORIES[topDirectory]
-  if (componentDirectory === undefined) return undefined
+  const componentDirectory = COMPONENT_DIRECTORIES[component]
   const rest = stripped.slice(separator + 1)
   if (rest === '' || rest.includes('\0') || rest.split('/').includes('..')) return undefined
   const destination = resolve(home, componentDirectory, ...rest.split('/'))

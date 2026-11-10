@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Sync backup",
-    "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory — pick any subset) to S3-compatible storage or WebDAV, with scheduled backups, an archive list and selective restore."
+    "description": "Back up and restore dsh-mnemon memory and user-level skills to S3-compatible storage or WebDAV: memory spaces, project documents, runtime memory and skill files, with scheduled backups, an archive list and selective restore."
   }
 }

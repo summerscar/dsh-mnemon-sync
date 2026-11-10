@@ -1,8 +1,8 @@
 /**
  * Mnemon Sync — snapshot building.
  *
- * A backup is built from up to three *components*, the same three dsh-mnemon
- * itself groups its own Pack by:
+ * A backup is built from up to five *components*. The first three are the ones
+ * dsh-mnemon itself groups its own Pack by:
  *
  * - `memory-spaces` — the `<MNEMON_DATA_DIR>/data` directory: one SQLite
  *   database per space (`<id>/mnemon.db`) plus the space registry.
@@ -10,6 +10,15 @@
  *   active / archived Markdown files it points at.
  * - `runtime`        — `<MNEMON_DATA_DIR>/runtime`: `memories.json` and the two
  *   projections (`USER.md`, `MEMORY.md`) generated from it.
+ *
+ * The other two are skills, which live in two stores that dsh-mnemon does not
+ * merge (see `skills.js` for why they stay separate):
+ *
+ * - `skills`      — `<MNEMON_DATA_DIR>/skills`: the Skills Source's ledger,
+ *   evals, versions, trajectories, market and trash.
+ * - `skill-files` — the real `SKILL.md` trees under DSH's *user-level* skill
+ *   roots. Project-level roots are excluded on purpose: they are repository
+ *   files that git already carries, and a restore must not overwrite a checkout.
  *
  * Any subset may be selected, which is why the snapshot records exactly which
  * components it holds: a restore can then say "this archive has no documents"
@@ -28,6 +37,8 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+import { SKILLS_DATA_DIRECTORY, collectSkillRootFiles, collectSkillsData, inspectSkillRoots, skillRoots, skillsDataRoot } from './skills.js'
+
 /** Memory space directories are validated with the store's own rule. */
 export const MEMORY_SPACE_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
 export const MEMORY_SPACES_DIRECTORY = 'data'
@@ -40,7 +51,23 @@ export const RUNTIME_MEMORIES_FILE = 'memories.json'
 export const RUNTIME_PROJECTION_FILES = { user: 'USER.md', memory: 'MEMORY.md' }
 
 /** The components a backup may contain, in the order dsh-mnemon lists them. */
-export const COMPONENTS = ['memory-spaces', 'documents', 'runtime']
+export const COMPONENTS = ['memory-spaces', 'documents', 'runtime', 'skills', 'skill-files']
+
+/**
+ * The components that come from the Mnemon home itself, as opposed to the
+ * filesystem skill roots. Kept as one list because the build loop and the
+ * restore plan both key off the same split.
+ */
+export const HOME_COMPONENTS = ['memory-spaces', 'documents', 'runtime', 'skills']
+
+/** Payload directory each component is stored under. */
+export const COMPONENT_DIRECTORIES = {
+  'memory-spaces': 'data',
+  documents: 'documents',
+  runtime: 'runtime',
+  skills: SKILLS_DATA_DIRECTORY,
+  'skill-files': 'skill-files',
+}
 
 /** Files inside a space directory that are regenerable and never worth carrying. */
 const VOLATILE_SUFFIXES = ['-wal', '-shm', '-journal']
@@ -125,8 +152,34 @@ export function inspectHome(home) {
     files: runtimeFiles,
   }
 
+  // The skills data directory holds the ledger and the version copies it
+  // points at, so it travels whole: a ledger restored without the versions
+  // beside it would offer rollbacks to files that no longer exist.
+  const skillsFiles = collectSkillsData(home)
+
+  // Skill roots are reported with their existence flag, because "this root was
+  // never created" and "this root exists but is empty" mean different things to
+  // someone deciding whether a backup is complete.
+  const roots = inspectSkillRoots()
+  const skillFiles = []
+  for (const root of roots) {
+    for (const file of root.files) {
+      skillFiles.push({ relative: `${root.kind}/${file.relative}`, bytes: file.bytes })
+    }
+  }
+  skillFiles.sort((left, right) => left.relative.localeCompare(right.relative))
+
+  const rootSummaries = roots.map((root) => ({
+    kind: root.kind,
+    path: root.path,
+    exists: root.exists,
+    skills: root.skills,
+    bytes: root.bytes,
+  }))
+
   return {
     home,
+    skillRoots: rootSummaries,
     components: {
       'memory-spaces': {
         available: spaces.length > 0,
@@ -144,14 +197,29 @@ export function inspectHome(home) {
         files: runtime.files,
         totalBytes: runtime.files.reduce((total, file) => total + file.bytes, 0),
       },
+      skills: {
+        available: skillsFiles.length > 0,
+        files: skillsFiles,
+        totalBytes: skillsFiles.reduce((total, file) => total + file.bytes, 0),
+        // The absolute directory, so the page can show where a tick reads from
+        // instead of describing it as "mnemon skill data" and leaving the reader
+        // to guess which folder that is.
+        path: skillsDataRoot(home),
+      },
+      'skill-files': {
+        available: skillFiles.length > 0,
+        files: skillFiles,
+        totalBytes: skillFiles.reduce((total, file) => total + file.bytes, 0),
+        roots: rootSummaries,
+      },
     },
   }
 }
 
 /** Backwards-compatible view of just the memory-space part. */
-export function inspectDataDirectory(dataRoot) {
+export function inspectDataDirectory(dataRoot, options = {}) {
   const home = dirname(dataRoot)
-  const inspected = inspectHome(home)
+  const inspected = inspectHome(home, options)
   const spaces = inspected.components['memory-spaces'].spaces
   return {
     exists: spaces.length > 0,
@@ -341,7 +409,11 @@ export async function buildSnapshot(home, stagingDirectory, options = {}) {
     }
   }
 
-  for (const component of ['documents', 'runtime']) {
+  // Components whose files all come from one directory inside the Mnemon home.
+  // `skills` joins documents and runtime here because the Skills Source's data
+  // is just another directory of the home; only the skill *files* live outside
+  // it, and those are handled separately below.
+  for (const component of ['documents', 'runtime', 'skills']) {
     if (!selection.includes(component)) continue
     const part = inspected.components[component]
     if (!part.available) {
@@ -349,14 +421,15 @@ export async function buildSnapshot(home, stagingDirectory, options = {}) {
       continue
     }
     onProgress?.(`backing up ${component}`)
-    const targetRoot = join(payloadRoot, component === 'documents' ? DOCUMENTS_DIRECTORY : RUNTIME_DIRECTORY)
+    const directory = COMPONENT_DIRECTORIES[component]
+    const targetRoot = join(payloadRoot, directory)
     for (const file of part.files) {
-      const from = join(home, component === 'documents' ? DOCUMENTS_DIRECTORY : RUNTIME_DIRECTORY, file.relative)
+      const from = join(home, directory, file.relative)
       const bytes = readFileSync(from)
       const destination = join(targetRoot, file.relative)
       mkdirSync(dirname(destination), { recursive: true })
       writeFileSync(destination, bytes)
-      record(`payload/${component === 'documents' ? DOCUMENTS_DIRECTORY : RUNTIME_DIRECTORY}/${file.relative}`, bytes)
+      record(`payload/${directory}/${file.relative}`, bytes)
     }
     captured.push({
       component,
@@ -365,9 +438,49 @@ export async function buildSnapshot(home, stagingDirectory, options = {}) {
     })
   }
 
+  // Skill files come from roots outside the Mnemon home, so each file is
+  // copied from the root it was listed under. The root *kind* — not its
+  // absolute path — is the payload's first segment: an archive must restore
+  // into whatever those roots are on the machine it lands on, not into the
+  // path this machine happened to use.
+  if (selection.includes('skill-files')) {
+    const part = inspected.components['skill-files']
+    if (!part.available) {
+      skipped.push({ component: 'skill-files', reason: 'no skill file was found in any skill root' })
+    } else {
+      onProgress?.('backing up skill files')
+      const directory = COMPONENT_DIRECTORIES['skill-files']
+      const roots = skillRoots()
+      for (const root of roots) {
+        const listed = collectSkillRootFiles(root.path)
+        for (const file of listed) {
+          const from = join(root.path, file.relative)
+          if (!existsSync(from)) continue
+          const bytes = readFileSync(from)
+          const relativePath = `${root.kind}/${file.relative}`
+          const destination = join(payloadRoot, directory, relativePath)
+          mkdirSync(dirname(destination), { recursive: true })
+          writeFileSync(destination, bytes)
+          record(`payload/${directory}/${relativePath}`, bytes)
+        }
+      }
+      captured.push({
+        component: 'skill-files',
+        files: part.files.length,
+        bytes: part.totalBytes,
+        // Which roots this archive actually drew from, so a restore can explain
+        // a root that contributed nothing without pretending it was missing.
+        roots: part.roots.filter((root) => root.exists).map((root) => root.kind),
+      })
+    }
+  }
+
   const manifest = {
     format: 'mnemon-sync-snapshot',
-    version: 2,
+    // 3 adds the two skill components. The restore half accepts any version and
+    // dispatches on the component name, so archives written before this bump
+    // keep restoring unchanged.
+    version: 3,
     createdAt: new Date().toISOString(),
     source: { home },
     // What the operator asked for, what actually shipped, and what was empty —

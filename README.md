@@ -7,7 +7,7 @@ DeepSeek Harness (DSH) plugins by summerscar. Browse install commands and each p
 
 | Package | What it does |
 | --- | --- |
-| [`@summerscar/dsh-mnemon-sync`](plugins/dsh-mnemon-sync/README.md) | Sync backup: back up dsh-mnemon memory spaces, project documents and runtime memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore. |
+| [`@summerscar/dsh-mnemon-sync`](plugins/dsh-mnemon-sync/README.md) | Sync backup: back up dsh-mnemon memory spaces, project documents, runtime memory and user-level skill files to S3-compatible storage or WebDAV, with scheduled backups and selective restore. |
 
 ## Install
 

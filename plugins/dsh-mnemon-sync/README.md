@@ -18,7 +18,7 @@
 
 ---
 
-`dsh-mnemon` keeps long-term memory in local SQLite databases and Markdown files. This plugin adds **off-site backup** and **on-demand restore**: once installed, the memory system gains a "Sync backup" tab.
+`dsh-mnemon` keeps long-term memory in local SQLite databases and Markdown files, and DSH keeps your skills as `SKILL.md` folders on disk. This plugin adds **off-site backup** and **on-demand restore** for both: once installed, the memory system gains a "Sync backup" tab.
 
 ![Sync backup page: choose components, target and cadence](assets/screenshot-config.png)
 
@@ -34,7 +34,21 @@ Restart DSH, then open the memory system to find "Sync backup". The plugin still
 
 ## What it does
 
-Pick any subset of three components (all selected by default): memory spaces, project documents and runtime memory. Archives go to S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2, Aliyun OSS …) or a WebDAV server, on a timer from hourly to weekly. You can list the archives already on the target, inspect one, and restore only the components you choose. Restore previews by default; every file is SHA-256 verified before upload and again before restore, and live databases are copied through `node:sqlite`'s online `backup()`.
+Pick any subset of five components. The original three are selected by default; both skill components start unselected, because carrying a machine's skills is a deliberate act — a restore writes into the skill roots, so it should not happen as a side effect of the first backup:
+
+| Component | Contents | Default |
+|---|---|---|
+| Memory spaces | `<MNEMON_DATA_DIR>/data/`, one `mnemon.db` per space plus the registry | selected |
+| Project documents | `<MNEMON_DATA_DIR>/documents/`, `index.json` and every Markdown file | selected |
+| Runtime memory | `<MNEMON_DATA_DIR>/runtime/`, `memories.json` and both projections | selected |
+| Skill files | The real skill trees under `$DSH_HOME/skills` and `$DSH_AGENTS_HOME/skills` | not selected |
+| Skill data | `<MNEMON_DATA_DIR>/skills/`: `ledger.json`, `evals.json`, `versions/`, `trajectories/`, `market/`, `trash/` | not selected |
+
+Skills are split into two components because they behave differently: a `SKILL.md` is what makes the model capable, so it must travel to a new machine, while the ledger and trajectories are local evolution history that is large and recomputable — leave it off if you would rather not upload it.
+
+**Project-level skills are out of scope.** `<project>/.dsh/skills` and `<project>/.agents/skills` belong to a repository and travel with git. Copying them into a memory backup would give the same content a second source of truth, and a restore could overwrite your checkout, so only the user's own layer is backed up.
+
+Archives go to S3-compatible storage (Cloudflare R2, MinIO, Backblaze B2, Aliyun OSS …) or a WebDAV server, on a timer from hourly to weekly. You can list the archives already on the target, inspect one, and restore only the components you choose. Restore previews by default; every file is SHA-256 verified before upload and again before restore, and live databases are copied through `node:sqlite`'s online `backup()`.
 
 OS bookkeeping files (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `._*` resource forks, editor `.swp` / `~` backups) are never packed. An older archive that carries them still restores — those entries are skipped rather than failing the run.
 

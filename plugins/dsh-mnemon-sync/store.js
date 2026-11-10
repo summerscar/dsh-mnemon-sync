@@ -18,6 +18,8 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { COMPONENTS as COMPONENT_ORDER } from './snapshot.js'
+
 const FILE = 'mnemon-sync.json'
 const DIRECTORY = 'state'
 
@@ -40,8 +42,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // as a third-party Source's configuration, so it cannot look the value up.
   mnemonHome: '',
   target: { kind: 'webdav', url: '', username: '', password: '', remotePath: 'mnemon-sync' },
-  // Which dsh-mnemon components a backup carries. All three by default: a
-  // backup that silently omits memory spaces would be the worst default.
+  // Which dsh-mnemon components a backup carries. The original three are on by
+  // default; both skill components start off, because migrating a machine's
+  // skills is a deliberate act rather than something a first backup should do
+  // silently — a restore writes into the skill roots, and an archive of skills
+  // is larger than the memory it sits beside.
   components: ['memory-spaces', 'documents', 'runtime'],
   // One number, as dsh-mnemon's Git channel stores it: 0 means "only when you
   // press the button", anything else is a whole number of minutes. Keeping the
@@ -120,11 +125,17 @@ function normalizeOptionalPath(value) {
  * An absent value means "everything", which is what a caller that sends only
  * what it changed expects. An explicit empty list is a mistake rather than a
  * choice — a backup of nothing is not a backup — so it falls back too.
+ *
+ * Both fallbacks use {@link DEFAULT_SETTINGS.components}, which carries the
+ * original three components only: the skill components are opted into rather
+ * than defaulted on. The accepted component names still come from the full
+ * `COMPONENTS` list, so a saved file that already names `skills` keeps naming
+ * it — changing the default must never silently drop a component someone chose.
  */
 function normalizeComponents(value) {
   if (value === undefined || value === null) return [...DEFAULT_SETTINGS.components]
   const requested = Array.isArray(value) ? value.map(String) : []
-  const known = DEFAULT_SETTINGS.components.filter((component) => requested.includes(component))
+  const known = COMPONENT_ORDER.filter((component) => requested.includes(component))
   return known.length === 0 ? [...DEFAULT_SETTINGS.components] : known
 }
 

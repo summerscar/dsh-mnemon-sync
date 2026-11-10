@@ -2,7 +2,7 @@
 
 # dsh-mnemon-sync
 
-**为 dsh-mnemon 的记忆做备份与恢复 —— 打包到 S3 兼容存储或 WebDAV，随时挑一个包还原回来。**
+**为 dsh-mnemon 的记忆和你的技能做备份与恢复 —— 打包到 S3 兼容存储或 WebDAV，随时挑一个包还原回来。**
 
 [![npm version](https://img.shields.io/npm/v/@summerscar/dsh-mnemon-sync?style=flat-square&color=blue)](https://www.npmjs.com/package/@summerscar/dsh-mnemon-sync)
 [![npm downloads](https://img.shields.io/npm/dm/@summerscar/dsh-mnemon-sync?style=flat-square)](https://www.npmjs.com/package/@summerscar/dsh-mnemon-sync)
@@ -16,13 +16,13 @@
 
 ---
 
-`dsh-mnemon` 把长期记忆存在本地 SQLite 和一批 Markdown 文件里。这个插件给它们加上**异地备份**和**按需恢复**：装好后在记忆系统里多一个「同步备份」标签页。
+`dsh-mnemon` 把长期记忆存在本地 SQLite 和一批 Markdown 文件里，DSH 则把技能存成磁盘上的 `SKILL.md` 目录。这个插件给这两样都加上**异地备份**和**按需恢复**：装好后在记忆系统里多一个「同步备份」标签页。
 
-![同步备份页面：选择记忆组件、备份目标与备份频率](../assets/screenshot-config.png)
+![同步备份页面：选择记忆与技能组件、备份目标与备份频率](../assets/screenshot-config.png)
 
 ```
 记忆系统 → 同步备份
-  ├── 备份范围   记忆空间 / 项目档案 / 运行时记忆（可任选）
+  ├── 备份范围   记忆空间 / 项目档案 / 运行时记忆 / 技能文件 / 技能数据（可任选）
   ├── 备份目标   S3 兼容存储 或 WebDAV
   ├── 自动备份   关闭 · 每小时 · 3/6/12 小时 · 每天 · 3/7 天
   └── 备份列表   查看明细 · 选择组件恢复
@@ -40,15 +40,23 @@ dsh plugin --profile web add @summerscar/dsh-mnemon-sync
 
 ## 功能
 
-**三个组件，任意组合**（默认全选）
+**五个组件，任意组合**
 
-| 组件 | 内容 |
-|---|---|
-| 记忆空间 | `<MNEMON_DATA_DIR>/data/`，每个空间的 `mnemon.db` 与空间清单 |
-| 项目档案 | `<MNEMON_DATA_DIR>/documents/`，`index.json` 与全部 Markdown |
-| 运行时记忆 | `<MNEMON_DATA_DIR>/runtime/`，`memories.json` 与两份投影 |
+| 组件 | 内容 | 默认 |
+|---|---|---|
+| 记忆空间 | `<MNEMON_DATA_DIR>/data/`，每个空间的 `mnemon.db` 与空间清单 | 选中 |
+| 项目档案 | `<MNEMON_DATA_DIR>/documents/`，`index.json` 与全部 Markdown | 选中 |
+| 运行时记忆 | `<MNEMON_DATA_DIR>/runtime/`，`memories.json` 与两份投影 | 选中 |
+| 技能文件（SKILL.md） | 用户级技能根下真实的技能目录树：`$DSH_HOME/skills`、`$DSH_AGENTS_HOME/skills` | 不选 |
+| 技能数据（mnemon） | `<MNEMON_DATA_DIR>/skills/`，`ledger.json`、`evals.json`、`versions/`、`trajectories/`、`market/`、`trash/` | 不选 |
 
 `MNEMON_DATA_DIR` 未设置时取 `~/.mnemon`，页面上会直接显示当前实际读取的目录。
+
+技能的两个组件默认都不勾选。备份记忆是常规操作，搬技能则是主动决定：恢复会直接写入技能根目录，不该作为「顺手备份一次」的副作用发生。要换机器时把这两项勾上即可。
+
+技能拆成两项，是因为它们的性质不同：`SKILL.md` 决定模型会什么，换机器一定要带走；`ledger.json` 与 `trajectories/` 是本机进化历史，体积大且可重算，不想传到远端就把它留空。
+
+**项目级技能不在备份范围**：`<项目>/.dsh/skills` 和 `<项目>/.agents/skills` 属于代码仓库，跟着 git 走。把它们塞进记忆备份等于给同一份内容找第二个来源，恢复时还可能覆盖你的工作区，所以这里只备份用户自己的那一层。
 
 dsh-mnemon 的存储位置不一定是默认的那一个（它的 `storageScope` 还可以是 `workspace`、`custom` 或 `workspaces`），而第三方 Source 拿不到这个值，所以「备份范围」里可以手填数据目录。留空即按上面的规则自动判断；填了就只读你指定的目录，页面上「当前实际读取」会跟着变。「恢复自动判断」把这一项清回留空状态。
 

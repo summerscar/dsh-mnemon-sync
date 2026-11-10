@@ -77,8 +77,8 @@ export const memoryPlugin = sdk === undefined ? {
   packageName: SYNC_PACKAGE_NAME,
   label: { en: 'Sync backup', 'zh-CN': '同步备份' },
   description: {
-    en: 'Back up and restore dsh-mnemon memory components.',
-    'zh-CN': '备份与恢复 dsh-mnemon 的记忆组件。',
+    en: 'Back up and restore dsh-mnemon memory and skill components.',
+    'zh-CN': '备份与恢复 dsh-mnemon 的记忆与技能组件。',
   },
   roles: ['source'],
   provides: [{ id: 'source' }],
@@ -111,7 +111,7 @@ export const syncSourceManifest = {
   // Source; without it the Source is installed but reported "on yet not running".
   management: {
     label: 'Sync backup',
-    description: 'Back up and restore dsh-mnemon memory components.',
+    description: 'Back up and restore dsh-mnemon memory and skill components.',
   },
 }
 

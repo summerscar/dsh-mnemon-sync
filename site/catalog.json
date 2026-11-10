@@ -17,21 +17,32 @@
         "zh": "让会话好找、能回顾，并从经验里学习。",
         "en": "Keep sessions findable, reviewable, and learning from experience."
       }
+    },
+    {
+      "id": "tool",
+      "title": {
+        "zh": "工具",
+        "en": "Tools"
+      },
+      "summary": {
+        "zh": "给日常操作加减负担的小工具。",
+        "en": "Small tools that take work off your hands."
+      }
     }
   ],
   "plugins": [
     {
       "slug": "mnemon-sync",
       "package": "@summerscar/dsh-mnemon-sync",
-      "category": "sessions",
+      "category": "tool",
       "kind": "plugin",
       "title": {
         "zh": "同步备份",
         "en": "Sync backup"
       },
       "summary": {
-        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。",
-        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore."
+        "zh": "把 dsh-mnemon 的记忆与技能备份到 S3 兼容存储或 WebDAV：记忆空间、项目档案、运行时记忆、用户级技能文件，支持定时备份与选择性恢复。",
+        "en": "Back up and restore dsh-mnemon memory and user-level skills to S3-compatible storage or WebDAV: memory spaces, project documents, runtime memory and skill files, with scheduled backups and selective restore."
       },
       "readme": {
         "zh": "docs/README.zh-CN.md",

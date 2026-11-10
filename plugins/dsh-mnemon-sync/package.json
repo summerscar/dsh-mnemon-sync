@@ -1,7 +1,7 @@
 {
   "name": "@summerscar/dsh-mnemon-sync",
   "version": "0.1.14",
-  "description": "Back up and restore dsh-mnemon memory components (memory spaces, project documents, runtime memory) to S3-compatible storage or WebDAV.",
+  "description": "Back up and restore dsh-mnemon memory and skill components (memory spaces, project documents, runtime memory, skill files, skill data) to S3-compatible storage or WebDAV.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -21,6 +21,7 @@
     "scheduler.js",
     "targets.js",
     "zip.js",
+    "skills.js",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
@@ -47,7 +48,12 @@
     "webdav",
     "s3",
     "cloudflare-r2",
-    "dsh-plugins"
+    "dsh-plugins",
+    "skill",
+    "skills",
+    "skill-backup",
+    "skill-md",
+    "agent-skills"
   ],
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -80,8 +86,8 @@
     "catalog": {
       "category": "tool",
       "summary": {
-        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore.",
-        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。"
+        "en": "Back up and restore dsh-mnemon memory and user-level skills to S3-compatible storage or WebDAV: memory spaces, project documents, runtime memory and skill files, with scheduled backups and selective restore.",
+        "zh": "把 dsh-mnemon 的记忆与技能备份到 S3 兼容存储或 WebDAV：记忆空间、项目档案、运行时记忆、用户级技能文件，支持定时备份与选择性恢复。"
       },
       "capabilities": [
         "webServer",

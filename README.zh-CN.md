@@ -7,7 +7,7 @@ summerscar 的 DeepSeek Harness（DSH）插件。可以在[插件站点](https:/
 
 | 包 | 作用 |
 | --- | --- |
-| [`@summerscar/dsh-mnemon-sync`](plugins/dsh-mnemon-sync/docs/README.zh-CN.md) | 同步备份：把 dsh-mnemon 的记忆空间、项目档案与运行时记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。 |
+| [`@summerscar/dsh-mnemon-sync`](plugins/dsh-mnemon-sync/docs/README.zh-CN.md) | 同步备份：把 dsh-mnemon 的记忆空间、项目档案、运行时记忆与用户级技能文件备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。 |
 
 ## 安装
 

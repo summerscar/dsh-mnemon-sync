@@ -83,6 +83,25 @@ test("catalog validation rejects duplicates and missing translations", () => {
   const missing = structuredClone(catalog);
   delete missing.plugins[0].summary.en;
   assert.throws(() => validateCatalog(missing), /missing summary\.en/);
+  // A category needs both languages too: the sidebar and breadcrumb print it,
+  // so a half-translated one would render a raw id in one of the two sites.
+  const halfCategory = structuredClone(catalog);
+  delete halfCategory.categories[0].title.zh;
+  assert.throws(() => validateCatalog(halfCategory), /category .* missing zh copy/);
+});
+
+test("every category the catalog declares is translated, and none is orphaned", () => {
+  // The plugin's own manifest picks a category id; the site must carry a
+  // matching entry or render.mjs rejects the plugin outright.
+  for (const entry of catalog.plugins) {
+    const match = catalog.categories.find((c) => c.id === entry.category);
+    assert.ok(match, `${entry.slug}: no category named ${entry.category}`);
+    for (const lang of ["zh", "en"]) {
+      assert.equal(typeof match.title[lang], "string");
+      assert.ok(match.title[lang].length > 0);
+    }
+  }
+  assert.deepEqual(catalog.categories.map((c) => c.id).sort(), ["sessions", "tool"]);
 });
 
 function fixture() {
@@ -148,7 +167,7 @@ test("site rendering covers the plugin in both languages with valid local links"
   assert.equal(siteIndex.format, 1);
   assert.deepEqual(siteIndex.plugins.map((p) => p.name), [pkg.package]);
   const entry = siteIndex.plugins[0];
-  assert.equal(entry.metadata.category, "sessions");
+  assert.equal(entry.metadata.category, pkg.category);
   assert.equal(entry.versions[0].publishTimestamp, Math.floor(Date.parse(data[pkg.package].modified) / 1000));
   assert.equal(entry.versions[0].engines.dsh, ">=0.2.1-rc.1");
   assert.equal(entry.repository.directory, "plugins/dsh-mnemon-sync");

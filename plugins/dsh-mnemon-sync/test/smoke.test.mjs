@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import test from 'node:test'
@@ -178,6 +178,25 @@ test('archive paths resolve on Windows, where the separator is not "/"', async (
   assert.equal(destinationFor(home, 'payload/runtime/USER.md'),
     resolve(home, 'runtime', 'USER.md'))
 
+  // The skills data directory is a component of the home, so it restores
+  // inside the home like every other one.
+  assert.equal(destinationFor(home, 'payload/skills/ledger.json'),
+    resolve(home, 'skills', 'ledger.json'))
+
+  // Skill *files* live outside the home, under a root named by kind. Only the
+  // two user-level roots are restorable: a project root belongs to a checkout
+  // that git already carries, so an archive may not write into one.
+  const roots = [
+    { kind: 'user-dsh', path: resolve(tmpdir(), 'dsh-home', 'skills') },
+    { kind: 'user-agents', path: resolve(tmpdir(), 'agents-home', 'skills') },
+  ]
+  assert.equal(destinationFor(home, 'payload/skill-files/user-dsh/foo/SKILL.md', roots),
+    resolve(roots[0].path, 'foo', 'SKILL.md'))
+  assert.equal(destinationFor(home, 'payload/skill-files/user-agents/bar/SKILL.md', roots),
+    resolve(roots[1].path, 'bar', 'SKILL.md'))
+  assert.equal(destinationFor(home, 'payload/skill-files/project-dsh/foo/SKILL.md', roots), undefined)
+  assert.equal(destinationFor(home, 'payload/skill-files/unknown/foo/SKILL.md', roots), undefined)
+
   // Finder's junk file is a legitimate payload path: the restore must not treat
   // it as an escape. Whether it is written is a separate, higher-level decision.
   assert.notEqual(destinationFor(home, 'payload/data/.DS_Store'), undefined)
@@ -187,13 +206,86 @@ test('archive paths resolve on Windows, where the separator is not "/"', async (
     'payload/data/../state/mnemon-sync.json',
     'payload/data/../../evil.txt',
     'payload/state/mnemon-sync.json',
-    'payload/skills/x.json',
+    'payload/skills/../state/mnemon-sync.json',
+    'payload/skill-files/user-dsh/../../etc/passwd',
+    'payload/skill-files/user-dsh/..',
     'payload/data',
     'payload/data/',
     'manifest.json',
   ]) {
-    assert.equal(destinationFor(home, bad), undefined, `${bad} must be rejected`)
+    assert.equal(destinationFor(home, bad, roots), undefined, `${bad} must be rejected`)
   }
+})
+
+test('a build constant lets a reload be observed from the API', async () => {
+  // HMR reloads the Host module without restarting the container, so a working
+  // page and a 200 from the API both stay true while the old module still runs.
+  // The only way to tell "the new code is live" from "the old code happens to
+  // answer" is a value only the new source can produce. This asserts one exists
+  // and is exposed, so a future refactor cannot quietly drop it.
+  const host = await import(new URL('../index.js', import.meta.url))
+  assert.equal(typeof host.BUILD, 'string')
+  assert.match(host.BUILD, /^mnemon-sync-\d{4}-\d{2}-\d{2}\.\d+$/u)
+  const source = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // Bumping the constant is pointless unless the status route reports it.
+  assert.match(source, /build: BUILD/u)
+})
+
+test('skill roots are the two user-level ones, never a project root', async () => {
+  // Project-level skills (<project>/.dsh/skills, <project>/.agents/skills) are
+  // repository files that git already carries. Copying them into a memory
+  // backup would duplicate a source of truth that already has one, and a
+  // restore could silently overwrite a checkout — so they are out of scope and
+  // this test exists to keep them out.
+  const { skillRoots, SKILL_ROOT_KINDS, dshHome, agentsHome } =
+    await import(new URL('../skills.js', import.meta.url))
+  assert.deepEqual(SKILL_ROOT_KINDS, ['user-dsh', 'user-agents'])
+  const roots = skillRoots()
+  assert.deepEqual(roots.map((root) => root.kind), ['user-dsh', 'user-agents'])
+  // Each root is exactly `<home>/skills`, not a guess anchored at the process
+  // working directory: a project root would show up here as <cwd>/.dsh/skills.
+  assert.equal(roots[0].path, join(dshHome(), 'skills'))
+  assert.equal(roots[1].path, join(agentsHome(), 'skills'))
+  for (const root of roots) {
+    assert.ok(isAbsolute(root.path), 'a skill root must be absolute')
+    // A project root would be <cwd>/.dsh/skills; nothing may live under the
+    // process working directory, or a backup would depend on where DSH was
+    // started from instead of on the user's own layer.
+    assert.equal(root.path.startsWith(`${process.cwd()}${sep}`), false,
+      'no skill root may be derived from the process working directory')
+  }
+})
+
+test('both skill components start unselected', async () => {
+  // A first backup must not quietly carry a machine's skills: restoring a skill
+  // component writes into the skill roots, which is a migration, not a routine
+  // backup. The original three components stay the default.
+  const { normalizeSettings, DEFAULT_SETTINGS } = await import(new URL('../store.js', import.meta.url))
+  assert.deepEqual([...DEFAULT_SETTINGS.components], ['memory-spaces', 'documents', 'runtime'])
+  assert.equal(normalizeSettings({}).components.includes('skills'), false)
+  assert.equal(normalizeSettings({}).components.includes('skill-files'), false)
+
+  // Changing the default must never rewrite a choice someone already saved:
+  // a file that names the skill components keeps naming them.
+  assert.deepEqual(normalizeSettings({ components: ['skill-files'] }).components, ['skill-files'])
+  assert.deepEqual(
+    normalizeSettings({ components: ['memory-spaces', 'runtime', 'skills', 'skill-files'] }).components,
+    ['memory-spaces', 'runtime', 'skills', 'skill-files'],
+  )
+})
+
+test('skill files are counted per skill, not per file', async () => {
+  const { countSkills } = await import(new URL('../skills.js', import.meta.url))
+  // A skill is a folder holding SKILL.md, plus its references; a lone SKILL.md
+  // at the root counts as one skill of its own.
+  assert.equal(countSkills([
+    { relative: 'a/SKILL.md' },
+    { relative: 'a/references/x.md' },
+    { relative: 'b/SKILL.md' },
+    { relative: 'SKILL.md' },
+    { relative: 'notes.md' },
+  ]), 3)
+  assert.equal(countSkills([]), 0)
 })
 
 test('OS bookkeeping files never enter an archive and never block a restore', async () => {

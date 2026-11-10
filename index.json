@@ -10,10 +10,10 @@
   },
   "metadata": {
     "categories": {
-      "sessions": {
+      "tool": {
         "title": {
-          "zh": "会话与记忆",
-          "en": "Sessions and memory"
+          "zh": "工具",
+          "en": "Tools"
         }
       }
     }
@@ -26,8 +26,8 @@
         "en": "Sync backup"
       },
       "description": {
-        "zh": "把 dsh-mnemon 的记忆备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。",
-        "en": "Back up and restore dsh-mnemon memory to S3-compatible storage or WebDAV, with scheduled backups and selective restore."
+        "zh": "把 dsh-mnemon 的记忆与技能备份到 S3 兼容存储或 WebDAV：记忆空间、项目档案、运行时记忆、用户级技能文件，支持定时备份与选择性恢复。",
+        "en": "Back up and restore dsh-mnemon memory and user-level skills to S3-compatible storage or WebDAV: memory spaces, project documents, runtime memory and skill files, with scheduled backups and selective restore."
       },
       "author": "summerscar",
       "homepage": "https://summerscar.github.io/dsh-plugins/plugins/mnemon-sync/",
@@ -36,7 +36,7 @@
         "directory": "plugins/dsh-mnemon-sync"
       },
       "metadata": {
-        "category": "sessions",
+        "category": "tool",
         "keywords": [
           "dsh",
           "dsh-plugin",
