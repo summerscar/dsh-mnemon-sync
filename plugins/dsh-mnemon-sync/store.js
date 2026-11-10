@@ -33,6 +33,12 @@ export const AUTO_SYNC_CHOICES = [0, 60, 180, 360, 720, 1440, 4320, 10080]
 
 export const DEFAULT_SETTINGS = Object.freeze({
   enabled: false,
+  // The Mnemon home to read. Empty means "whatever this Host resolves on its
+  // own" — the `MNEMON_DATA_DIR` environment variable, else `~/.mnemon`. It is
+  // stored rather than hard-coded because dsh-mnemon's real root can be
+  // `workspace`, `custom` or `workspaces`, and this plugin only receives `{}`
+  // as a third-party Source's configuration, so it cannot look the value up.
+  mnemonHome: '',
   target: { kind: 'webdav', url: '', username: '', password: '', remotePath: 'mnemon-sync' },
   // Which dsh-mnemon components a backup carries. All three by default: a
   // backup that silently omits memory spaces would be the worst default.
@@ -87,6 +93,7 @@ export function normalizeSettings(raw) {
   const source = isRecord(raw) ? raw : {}
   return {
     enabled: source.enabled === true,
+    mnemonHome: normalizeOptionalPath(source.mnemonHome),
     target: normalizeTargetSettings(source.target),
     components: normalizeComponents(source.components),
     autoSyncMinutes: normalizeAutoSyncMinutes(source.autoSyncMinutes),
@@ -94,6 +101,17 @@ export function normalizeSettings(raw) {
       keep: clampInt(source.retention?.keep, 1, 365, 14),
     },
   }
+}
+
+/**
+ * An optional directory the operator typed. Empty means "use the Host's own
+ * answer", so an absent, blank or whitespace-only value all collapse to `''`
+ * rather than pinning whatever the process happened to resolve that day --
+ * a pinned path would silently go stale when `MNEMON_DATA_DIR` changes.
+ */
+function normalizeOptionalPath(value) {
+  const text = String(value ?? '').trim()
+  return text === '' ? '' : text
 }
 
 /**

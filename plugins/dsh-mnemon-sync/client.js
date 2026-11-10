@@ -47,6 +47,9 @@ window.__ModuleLoader__.load({
       scope: '备份范围',
       scopeNote: '选择要备份的组件，可多选。只有被选中的内容会进入备份包。',
       scopePath: 'Mnemon 数据根目录',
+      dataRootField: '自定义数据目录（留空则自动判断）',
+      dataRootEffective: '当前实际读取：',
+      dataRootReset: '恢复自动判断',
       componentMemorySpaces: '记忆空间',
       componentDocuments: '项目档案',
       componentRuntime: '运行时记忆',
@@ -151,6 +154,9 @@ window.__ModuleLoader__.load({
       scope: 'Backup scope',
       scopeNote: 'Choose which components to back up; only the selected ones enter the archive.',
       scopePath: 'Mnemon data root',
+      dataRootField: 'Custom data directory (blank = auto-detect)',
+      dataRootEffective: 'Actually reading:',
+      dataRootReset: 'Use auto-detected',
       componentMemorySpaces: 'Memory spaces',
       componentDocuments: 'Project documents',
       componentRuntime: 'Runtime memory',
@@ -896,7 +902,24 @@ window.__ModuleLoader__.load({
               }),
             ),
             h('p', { style: styles.note }, t('scopePath')),
+            h(TextField, {
+              label: t('dataRootField'),
+              value: draft.mnemonHome == null ? '' : draft.mnemonHome,
+              placeholder: state.state.hostHome || '',
+              onChange: (v) => patchDraft(null, { mnemonHome: v }),
+            }),
+            // Show what the field actually resolves to: blank means "whatever
+            // the Host decided", and that value is not visible from the input
+            // alone. This line is the whole point of the field, so it reads the
+            // last-loaded value and is refreshed by the next reload.
+            h('p', { style: styles.note }, t('dataRootEffective')),
             h('span', { style: styles.code }, state.state.home || state.dataRoot),
+            (draft.mnemonHome ?? '') === ''
+              ? null
+              : h('button', {
+                  style: styles.button,
+                  onClick: () => patchDraft(null, { mnemonHome: '' }),
+                }, t('dataRootReset')),
           ),
 
           // --- target ---

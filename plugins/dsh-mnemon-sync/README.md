@@ -42,6 +42,8 @@ Credentials live in a `0600` file outside the DSH profile and are never packed i
 
 Everything is set on the "Sync backup" page. Saved secrets are shown only as a mask; leaving the mask (or the field) unchanged keeps the stored value.
 
+The memory directory is detected automatically (`MNEMON_DATA_DIR`, else `~/.mnemon`) and the page always shows what is actually being read. dsh-mnemon's storage root is not always the default one — its `storageScope` may also be `workspace`, `custom` or `workspaces` — and a third-party Source is never told which, so the backup scope offers a custom data directory field. Leave it blank to auto-detect; fill it in to read exactly that directory.
+
 See the [中文说明](docs/README.zh-CN.md) for field-by-field examples for S3 / Cloudflare R2 and WebDAV.
 
 ## Development

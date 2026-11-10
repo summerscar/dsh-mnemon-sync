@@ -20,7 +20,7 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { hostname } from 'node:os'
+import { homedir, hostname } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
 import { SyncHistory, SyncScheduler } from './scheduler.js'
@@ -46,18 +46,66 @@ export const name = 'dsh-mnemon-sync'
 export const inject = ['webServer', 'connection']
 
 /**
- * `MNEMON_DATA_DIR` names the Mnemon home; the memory store itself lives in
- * its `data` subdirectory, exactly as dsh-mnemon resolves it.
+ * Expand the one shorthand dsh-mnemon accepts in its own storage settings: a
+ * leading `~` (or `~\` on Windows) means the OS home directory. dsh-mnemon's
+ * `canonical()` does exactly this, so a `MNEMON_DATA_DIR=~/mnemon` value that
+ * works there must not turn into a literal `~` directory here.
  */
-export function resolveDataRoot(config = {}) {
+function expandHome(value) {
+  if (value === '~') return homedir()
+  if (value.startsWith('~/') || value.startsWith('~\\')) return join(homedir(), value.slice(2))
+  return value
+}
+
+/**
+ * The Mnemon home this Host resolves on its own, with no in-page override.
+ *
+ * `MNEMON_DATA_DIR` names it when set; otherwise it is `~/.mnemon`, resolved
+ * through `os.homedir()`.
+ *
+ * `homedir()` is used instead of `process.env.HOME` on purpose. Windows does
+ * not define `HOME` (it uses `USERPROFILE`), so reading `HOME` yields
+ * `undefined`, `join('', '.mnemon')` degrades to the *relative* path
+ * `.mnemon`, and `resolve()` anchors it at the process working directory —
+ * which for the desktop app is `<DSH_HOME>/profiles/desktop`. The reported
+ * root was then a folder that holds no memory at all. `homedir()` follows the
+ * platform's own rule, matching how dsh-mnemon's `globalRoot()` resolves it.
+ *
+ * `config.dataRoot` is the Host-level entry option and names the *data*
+ * directory (`<home>/data`), so its parent is the home.
+ */
+export function resolveHome(config = {}) {
   if (typeof config.dataRoot === 'string' && config.dataRoot.trim() !== '') {
-    return resolve(config.dataRoot.trim())
+    return resolve(resolve(expandHome(config.dataRoot.trim())), '..')
   }
   const fromEnvironment = process.env.MNEMON_DATA_DIR?.trim()
-  const home = fromEnvironment === undefined || fromEnvironment === ''
-    ? join(process.env.HOME ?? '', '.mnemon')
-    : fromEnvironment
-  return join(home, 'data')
+  return fromEnvironment === undefined || fromEnvironment === ''
+    ? join(homedir(), '.mnemon')
+    : resolve(expandHome(fromEnvironment))
+}
+
+/**
+ * The home actually read and backed up: the page's own override when set,
+ * else whatever {@link resolveHome} reports.
+ *
+ * The override exists because dsh-mnemon's real root is not always `global`:
+ * its `storageScope` may be `workspace`, `custom` or `workspaces`, and a
+ * third-party Source only ever receives `{}` as configuration (the Host passes
+ * `dataDir` to its built-in sources alone), so this plugin cannot look the
+ * value up. An empty string means "follow the Host", which keeps the default
+ * correct without pinning a path that a later environment change would stale.
+ */
+export function resolveEffectiveHome(configuredHome, config = {}) {
+  const text = typeof configuredHome === 'string' ? configuredHome.trim() : ''
+  return text === '' ? resolveHome(config) : resolve(expandHome(text))
+}
+
+/** Backwards-compatible helper: the `<home>/data` directory. */
+export function resolveDataRoot(config = {}) {
+  if (typeof config.dataRoot === 'string' && config.dataRoot.trim() !== '') {
+    return resolve(expandHome(config.dataRoot.trim()))
+  }
+  return join(resolveHome(config), 'data')
 }
 
 function sendJson(res, status, body) {
@@ -124,18 +172,21 @@ export function archiveKey(at = new Date(), device = 'device') {
   return `${ARCHIVE_PREFIX}${device}-${stamp}.zip`
 }
 export function apply(ctx, config = {}) {
-  const dataRoot = resolveDataRoot(config)
-  // `<home>/data` → `<home>`: settings and work files sit beside the store.
-  const home = resolve(dataRoot, '..')
-  const workRoot = join(home, 'state', 'mnemon-sync-work')
+  // Where this plugin keeps its *own* state — settings, run history, the
+  // staging workroot. Deliberately fixed to the Host-resolved home and never
+  // to the page's override: the override lives inside `state/`, so letting it
+  // decide where `state/` is would make the settings file read itself.
+  const stateHome = resolveHome(config)
+  const workRoot = join(stateHome, 'state', 'mnemon-sync-work')
 
-  const history = new SyncHistory(home)
-  const settings = () => readSettings(home)
+  const history = new SyncHistory(stateHome)
+  const settings = () => readSettings(stateHome)
 
   const performBackup = async (trigger, current, signal) => {
     if (current.enabled !== true && trigger === 'schedule') {
       return { skipped: 'disabled' }
     }
+    const home = resolveEffectiveHome(current.mnemonHome, config)
     const target = normalizeTarget(current.target)
     const staging = join(workRoot, `build-${String(Date.now())}`)
     mkdirSync(staging, { recursive: true })
@@ -251,10 +302,14 @@ export function apply(ctx, config = {}) {
 
     if (req.method === 'GET' && route === '/status') {
       const current = settings()
+      const home = resolveEffectiveHome(current.mnemonHome, config)
       sendJson(res, 200, {
-        dataRoot,
-        settingsPath: settingsPath(home),
+        dataRoot: join(home, 'data'),
+        stateHome,
+        settingsPath: settingsPath(stateHome),
         workRoot,
+        home,
+        hostHome: resolveHome(config),
         state: inspectHome(home),
         settings: maskSettings(current),
         scheduler: scheduler.snapshot(current),
@@ -268,7 +323,7 @@ export function apply(ctx, config = {}) {
     if (req.method === 'PUT' && route === '/settings') {
       const body = await readJsonBody(req)
       const incoming = body?.settings ?? body
-      const saved = writeSettings(home, normalizeSettings(restoreMaskedSecrets(incoming, settings())))
+      const saved = writeSettings(stateHome, normalizeSettings(restoreMaskedSecrets(incoming, settings())))
       scheduler.refresh()
       sendJson(res, 200, { settings: maskSettings(saved) })
       return
@@ -285,7 +340,7 @@ export function apply(ctx, config = {}) {
           // The same masked-secret rule as saving settings: the page always
           // sends the mask it was shown, and writing that mask as the real
           // password would silently break the next upload with a 401.
-          const saved = writeSettings(home, normalizeSettings(restoreMaskedSecrets(body.settings, settings())))
+          const saved = writeSettings(stateHome, normalizeSettings(restoreMaskedSecrets(body.settings, settings())))
           scheduler.refresh()
           const result = await scheduler.runNow('manual')
           sendJson(res, 200, { result, settings: maskSettings(saved) })
@@ -446,6 +501,7 @@ export function apply(ctx, config = {}) {
     const key = String(body?.key ?? '').trim()
     if (key === '') throw new Error('an archive key is required')
     const apply_ = body?.apply === true
+    const home = resolveEffectiveHome(current.mnemonHome, config)
     const target = normalizeTarget(current.target)
     const bytes = await downloadArchive(target, key)
     const files = readZip(bytes)

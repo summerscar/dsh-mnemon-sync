@@ -4,6 +4,14 @@
 
 ## Unreleased
 
+**新增**
+
+- 记忆目录可手动指定：dsh-mnemon 的存储位置不一定是默认的 `~/.mnemon`（`storageScope` 还可能是 `workspace` / `custom` / `workspaces`），而第三方 Source 拿不到这个值，所以「备份范围」新增数据目录输入框。留空即自动判断，填了就只读指定目录，页面显示当前实际读取的路径。插件自己的配置与运行记录仍固定在自动判断的目录下，不会被这一项搬走。
+
+**修复**
+
+- Windows（含桌面版）上数据根目录被解析成 `<profile 目录>/.mnemon`，页面显示的不是真实记忆目录。默认值原先读 `process.env.HOME`，而 Windows 只用 `USERPROFILE`，拿到 `undefined` 后 `join('', '.mnemon')` 退化成相对路径 `.mnemon`，再被 `resolve()` 锚到了进程工作目录。改用 `os.homedir()`，与 dsh-mnemon 自己解析 `~/.mnemon` 的方式一致；`MNEMON_DATA_DIR` 与 `dataRoot` 里的 `~` / `~\` 现在也会展开（此前会拼成字面量 `~` 目录）。
+
 **变更**
 
 - 仓库更名为 `dsh-plugins`，重构为 pnpm monorepo：插件源码整体迁入 `plugins/dsh-mnemon-sync/`，`git mv` 保留全部提交历史。npm 包名 `@summerscar/dsh-mnemon-sync` 不变，现有安装与更新链路不受影响。

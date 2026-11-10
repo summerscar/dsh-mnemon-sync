@@ -48,7 +48,9 @@ dsh plugin --profile web add @summerscar/dsh-mnemon-sync
 | 项目档案 | `<MNEMON_DATA_DIR>/documents/`，`index.json` 与全部 Markdown |
 | 运行时记忆 | `<MNEMON_DATA_DIR>/runtime/`，`memories.json` 与两份投影 |
 
-`MNEMON_DATA_DIR` 未设置时取 `~/.mnemon`。
+`MNEMON_DATA_DIR` 未设置时取 `~/.mnemon`，页面上会直接显示当前实际读取的目录。
+
+dsh-mnemon 的存储位置不一定是默认的那一个（它的 `storageScope` 还可以是 `workspace`、`custom` 或 `workspaces`），而第三方 Source 拿不到这个值，所以「备份范围」里可以手填数据目录。留空即按上面的规则自动判断；填了就只读你指定的目录，页面上「当前实际读取」会跟着变。「恢复自动判断」把这一项清回留空状态。
 
 **两种备份目标**
 

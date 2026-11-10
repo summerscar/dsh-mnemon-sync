@@ -32,7 +32,7 @@ import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-import { resolveDataRoot } from './index.js'
+import { resolveEffectiveHome, resolveHome } from './index.js'
 import { inspectHome } from './snapshot.js'
 import { readSettings } from './store.js'
 
@@ -130,12 +130,17 @@ export function createSyncSource(manifest = syncSourceManifest) {
       const configuredRoot = typeof context?.configuration?.dataRoot === 'string'
         ? context.configuration.dataRoot
         : undefined
-      const dataRoot = resolveDataRoot(configuredRoot === undefined ? {} : { dataRoot: configuredRoot })
-      const home = join(dataRoot, '..')
+      const config = configuredRoot === undefined ? {} : { dataRoot: configuredRoot }
+      // Settings live under the Host-resolved home, never under the page's
+      // override — that override is stored inside these very settings.
+      const stateHome = resolveHome(config)
 
       return {
         facts() {
-          const settings = safeSettings(home)
+          const settings = safeSettings(stateHome)
+          // Keep the Source honest about the same directory a backup would
+          // read, so its revision changes when the override does.
+          const home = resolveEffectiveHome(settings.mnemonHome, config)
           const inspected = safeInspect(home)
           return {
             sourceInstanceKey: context.sourceInstanceKey,
