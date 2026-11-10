@@ -42,6 +42,12 @@ pnpm check # 较大改动时全仓检查
 
 提交、推送、npm 发布和站点部署都需用户明确授权；本地清理和文档修改属于本地操作。
 
+**提交前先同步并 rebase 云端**：本仓发布工作流会在你工作期间基于同一祖先自动跑一版 `chore: record npm releases and plugin market index`（推高 `package.json` 版本号与 `dshRelease.contentHash`、刷新 `index.json`）。不先同步就 commit，push 必然 non-fast-forward 被拒。
+
+- **commit 前**：`git fetch origin main`；若 `git log --oneline HEAD..origin/main` 非空，先把本地基线对齐到远端（已有未推送提交时用 `git rebase origin/main`；只有未提交的工作区改动时先 commit 再 rebase —— rebase 需要干净工作区），然后再继续。用 `git diff --stat HEAD..origin/main` 看清远端多了什么，多半只有 `package.json` 与 `index.json` 两处。
+- **push 前**再 fetch 一次；远端若又前进，用 `git rebase origin/main` 把本地尚未推送的提交变基到远端之上（只改写本地未推送的历史，不动已发布的提交），跑一遍 `pnpm check`，最后 `git push origin main`。
+- 不要盲目 `git pull`（会生成无意义的 merge commit），不要用 `--force` 覆盖远端的发布记录。`index.json` 两边常由 `pnpm site:market` 生成出完全相同的内容，rebase 一般不冲突；若 `pnpm check` 报它过期，重新跑一次 `pnpm site:market` 即可。
+
 ## 本地 pnpm 调用
 
 根 `package.json` 固定 `pnpm@11.28.5`（CI 由 `pnpm/action-setup@v4` 安装同一版本）。本机直接运行 `pnpm <script>` 即可；若本机 corepack 缓存里还有旧版 pnpm，`corepack pnpm check` 会因脚本内嵌套的 `pnpm` 调用报「current pnpm is v11.7.0」——这是本机双版本 corepack 的拦截，不是仓库问题，改用不带 corepack 的 `pnpm` 即可。
