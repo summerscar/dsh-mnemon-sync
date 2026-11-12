@@ -28,16 +28,23 @@
 
 定期核对：catalog 与 npm 一致；README 与代码一致（以源码为准）；过时内容与死链。
 
-验证按需选择：
+## 验证
+
+**开发时只跑 `pnpm lint`**：`scripts/lint.mjs` 用 `node --check` 静态解析 `plugins/` `scripts/` `site/` 下的 JS，只回答「代码写坏了没」，不跑测试、不碰发布流程、不联网、不需要宿主服务。改完代码随手跑一次即可，秒级完成。
+
+**`pnpm check` 不在开发时跑**：它是提交前的全量闸门，由 husky pre-commit 钩子自动执行（生命周期清单、站点、插件测试、打包、市场索引都在这里）。开发阶段反复跑它既慢又会把无关的发布状态问题混进来。
+
+按需选择的其他命令：
 
 ```bash
-pnpm release:docs # 改了生命周期清单或包列表后同步根 README
-pnpm release:check # 生命周期、文档标记与发布脚本回归
-pnpm site:test # 改了 catalog 或 site/
-pnpm --filter @summerscar/dsh-mnemon-sync test # 改了插件就测插件
-pnpm pack:check # 改了 files 或包内文件
+pnpm lint                      # 开发中：只检查 JS 语法（默认）
+pnpm release:docs              # 改了生命周期清单或包列表后同步根 README
+pnpm release:check             # 生命周期、文档标记与发布脚本回归
+pnpm site:test                 # 改了 catalog 或 site/
+pnpm --filter @summerscar/dsh-mnemon-sync test   # 改了插件逻辑要验证行为时
+pnpm pack:check                # 改了 files 或包内文件
 git diff --check
-pnpm check # 较大改动时全仓检查
+pnpm check                     # 提交前由 husky 自动跑；本地仅在明确需要全量校验时手动执行
 ```
 
 提交、推送、npm 发布和站点部署都需用户明确授权；本地清理和文档修改属于本地操作。

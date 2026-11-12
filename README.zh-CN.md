@@ -41,6 +41,7 @@ pnpm check
 <!-- plugin-release-states:start -->
 | 包 | 生命周期 | 说明 |
 | --- | --- | --- |
+| [@summerscar/dsh-connect-agentscope-platform](plugins/dsh-connect-agentscope-platform/README.md) | 草稿 (`draft`) | 新插件开发中：可选模型供应商、额度与用量、每日签到尚未完成首次交付验收。 |
 | [@summerscar/dsh-mnemon-sync](plugins/dsh-mnemon-sync/README.md) | 已发布 (`published`) | 已有 npm 发布记录；后续版本按正常更新流程维护。 |
 <!-- plugin-release-states:end -->
 

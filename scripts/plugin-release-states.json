@@ -13,6 +13,14 @@
         "publishedAt": "2026-11-09T11:21:23.618Z",
         "integrity": "sha512-GX97N+FPGgIdIr9hc9GJGZWWyTDd+8vzhgjMOezbJk43WPzxxychFAa+1zjysr7dVJ3SsQ2VRJxEn6KINiKVhA=="
       }
+    },
+    {
+      "name": "@summerscar/dsh-connect-agentscope-platform",
+      "state": "draft",
+      "reason": {
+        "zh": "新插件开发中：可选模型供应商、额度与用量、每日签到尚未完成首次交付验收。",
+        "en": "Under development: the optional model provider, credits and usage, and the daily check-in have not completed first-delivery acceptance."
+      }
     }
   ]
 }

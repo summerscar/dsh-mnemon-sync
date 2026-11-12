@@ -11,6 +11,7 @@
   "scripts": {
     "build": "pnpm --filter \"{plugins/*}\" --if-present run build",
     "typecheck": "pnpm --filter \"{plugins/*}\" --if-present run typecheck",
+    "lint": "node scripts/lint.mjs",
     "test": "pnpm --workspace-concurrency=2 --filter \"{plugins/*}\" test",
     "pack:check": "pnpm --filter \"{plugins/*}\" exec npm pack --dry-run --cache .npm-cache",
     "release:check": "node scripts/release-status.mjs --check-docs && node --test scripts/*.test.mjs",
@@ -21,9 +22,11 @@
     "site:market": "node site/market.mjs",
     "site:market:check": "node site/market.mjs --check",
     "site:test": "node --test site/*.test.mjs",
-    "check": "pnpm release:check && pnpm site:test && pnpm test && pnpm pack:check && pnpm site:market:check"
+    "check": "pnpm release:check && pnpm site:test && pnpm test && pnpm pack:check && pnpm site:market:check",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "marked": "18.0.14",
     "semver": "^7.8.5",
     "tar-stream": "3.2.1"

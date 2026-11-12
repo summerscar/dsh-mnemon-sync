@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AgentScope Platform",
+    "description": "AgentScope Platform for DSH: an opt-in OpenAI-compatible model provider whose catalog can be fetched from the API, added by hand and edited row by row, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list."
+  }
+}

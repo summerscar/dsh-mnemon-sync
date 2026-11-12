@@ -4,11 +4,14 @@
 
 ## 官方包依赖约定
 
-`@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` 由宿主运行时提供，声明在 `peerDependencies` 与 `devDependencies` 中，版本范围只写开放下界（写精确版本或 `<0.2.0` 上界会让 loader 命中 pnpm 装进 profile 的旧拷贝，导致版本检查失败并停用插件）。
+`@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` 由宿主运行时提供，版本范围只写开放下界（写精确版本或 `<0.2.0` 上界会让 loader 命中 pnpm 装进 profile 的旧拷贝，导致版本检查失败并停用插件）。
 
-- 宿主包含的包：`peerDependencies` 写开放下界 + `peerDependenciesMeta` 标 `optional: true`（避免 auto-install-peers 安装物理副本）；`devDependencies` 保留精确版本供 typecheck/测试。
-- 宿主未内置的包：放入 `dependencies`，同样写开放下界。
+- **宿主内置的包**：写进 `peerDependencies` 开放下界 + `peerDependenciesMeta` 标 `optional: true`（避免 auto-install-peers 安装物理副本）。这些包由宿主 loader 在运行时注入，插件源码里用动态 `import()` 并提供解析失败时的降级路径。
+- **宿主未内置的包**：放入 `dependencies`，同样写开放下界。
+- **`devDependencies` 按实际需要决定，不是硬性要求**：只有真正存在本地 typecheck / 构建步骤、需要物理安装一份精确版本时才写。纯 JS 零构建插件（无 `typecheck`、无 build 脚本）里这些宿主包本地根本解析不到，写了只是死声明，会误导人以为 `pnpm install` 能装上。
 - `engines.dsh` 同样只写开放下界。
+
+本仓的 `dsh-connect-agentscope-platform` 即属于零构建纯 JS 插件：只声明可选 peer，无 `devDependencies`；`pi-adapter.js` 动态导入宿主 peer，解析失败只撤下模型路由并记日志（`engines.dsh` 已指向第一个自带该 peer 的宿主版本）。新增包内文件必须同步列入 `package.json` 的 `files`（以及需要被外部解析时的 `exports`），否则 `npm pack` 会漏掉。
 
 ## 自动触发的作用域
 

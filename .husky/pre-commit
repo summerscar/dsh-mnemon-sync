@@ -1,0 +1,6 @@
+# Commit gate. `pnpm check` is the full suite (lifecycle + docs + site + plugin
+# tests + packaging + market index); development-time work uses `pnpm lint`
+# instead, so this only ever runs once per commit.
+#
+# Husky v9 runs this file with sh and does not need a shebang or husky.sh sourcing.
+pnpm check

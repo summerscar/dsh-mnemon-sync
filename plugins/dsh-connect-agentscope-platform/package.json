@@ -1,0 +1,129 @@
+{
+  "name": "@summerscar/dsh-connect-agentscope-platform",
+  "version": "0.1.0",
+  "description": "AgentScope Platform for DeepSeek Harness: an optional OpenAI-compatible model provider you switch on when you want it, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credit balance, contribution grants and a paginated usage-detail query.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./as": "./as.js",
+    "./models": "./models.js",
+    "./model-meta": "./model-meta.js",
+    "./checkin": "./checkin.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json",
+    "./paths": "./paths.js",
+    "./pi-adapter": "./pi-adapter.js"
+  },
+  "files": [
+    "index.js",
+    "as.js",
+    "models.js",
+    "model-meta.js",
+    "checkin.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "docs/README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "assets/*",
+    "screenshots.json",
+    "paths.js",
+    "pi-adapter.js"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek-harness-plugin",
+    "cordis",
+    "agentscope",
+    "agentscope-platform",
+    "model-provider",
+    "credits",
+    "contribution",
+    "usage"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.16",
+    "dsh": ">=0.2.2-rc.1"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    },
+    "catalog": {
+      "category": "tool",
+      "summary": {
+        "en": "AgentScope Platform for DSH: an optional OpenAI-compatible provider you switch on yourself, a credit readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list.",
+        "zh": "把 AgentScope Platform 接入 DSH：可自行开关的 OpenAI 兼容模型供应商、输入框下方的额度读数，以及包含每日签到、可用 Credits、可兑换贡献值、用量明细与价目表的设置面板。"
+      },
+      "capabilities": [
+        "webServer",
+        "slots",
+        "locale"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.2.2-rc.1",
+      "profiles": [
+        "web",
+        "desktop"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/summerscar/dsh-plugins.git",
+    "directory": "plugins/dsh-connect-agentscope-platform"
+  },
+  "bugs": {
+    "url": "https://github.com/summerscar/dsh-plugins/issues"
+  },
+  "homepage": "https://summerscar.github.io/dsh-plugins/plugins/connect-agentscope-platform/",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "icon": "./icon.svg",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.2",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.1",
+    "@deepseek-ai/dsh-llm-pi-ai": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-settings": ">=0.2.1-rc.1",
+    "@earendil-works/pi-ai": ">=0.85.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm-pi-ai": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Host entry only. The provider route is NOT registered here: injecting a model
+# provider is opt-in, and the switch lives in this plugin's settings panel.
+# Registering it from the patch layer would put AgentScope in every profile's
+# model picker before anyone asked for it.
+- insert:
+    - id: dsh-connect-agentscope-platform
+      name: '@summerscar/dsh-connect-agentscope-platform'
