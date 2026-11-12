@@ -2,3 +2,6 @@ packages:
   - plugins/*
 # Keep the hoisted layout used by this workspace's tools.
 nodeLinker: hoisted
+# Host packages are injected by the DSH loader at runtime; installing them here
+# would drag their whole dependency tree into the workspace for nothing.
+autoInstallPeers: false

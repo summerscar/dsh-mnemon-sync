@@ -60,6 +60,8 @@ pnpm check                     # 提交前由 husky 自动跑；本地仅在明�
 
 根 `package.json` 固定 `pnpm@11.28.5`（CI 由 `pnpm/action-setup@v4` 安装同一版本）。本机直接运行 `pnpm <script>` 即可；若本机 corepack 缓存里还有旧版 pnpm，`corepack pnpm check` 会因脚本内嵌套的 `pnpm` 调用报「current pnpm is v11.7.0」——这是本机双版本 corepack 的拦截，不是仓库问题，改用不带 corepack 的 `pnpm` 即可。
 
+`pnpm-workspace.yaml` 里 `autoInstallPeers: false`：插件的宿主 peer 由 DSH loader 在运行时注入，不在这里装。开着它会把 `@earendil-works/pi-ai` 这类 peer 的整棵依赖树拖进工作区，连带来路不明的 build script，CI 的 `pnpm install --frozen-lockfile` 会以 `ERR_PNPM_IGNORED_BUILDS` 失败，lockfile 也多出近两千行无用条目。需要验证依赖 peer 的运行时行为时，在 DSH profile 里装插件实测；插件测试里依赖 peer 的那一半会自动跳过，CI 只跑不依赖 peer 的结构断言。
+
 ## 与 npm 发布的关系
 
 完整规则见 `RELEASING.zh-CN.md`，日常只需记住三条：生命周期 `draft` → `testing` → `published` 单向推进，`publication` 凭据永久保留；首次发布须由工作流 `first_release` 或 `plan --first-release` 明确选择；改清单后跑 `pnpm release:docs` + `pnpm release:check`。只改 `site/`、根 README 或未打包测试时保持当前发布状态。
