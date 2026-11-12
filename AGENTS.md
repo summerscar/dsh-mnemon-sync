@@ -54,6 +54,7 @@ pnpm check                     # 提交前由 husky 自动跑；本地仅在明�
 - **commit 前**：`git fetch origin main`；若 `git log --oneline HEAD..origin/main` 非空，先把本地基线对齐到远端（已有未推送提交时用 `git rebase origin/main`；只有未提交的工作区改动时先 commit 再 rebase —— rebase 需要干净工作区），然后再继续。用 `git diff --stat HEAD..origin/main` 看清远端多了什么，多半只有 `package.json` 与 `index.json` 两处。
 - **push 前**再 fetch 一次；远端若又前进，用 `git rebase origin/main` 把本地尚未推送的提交变基到远端之上（只改写本地未推送的历史，不动已发布的提交），跑一遍 `pnpm check`，最后 `git push origin main`。
 - 不要盲目 `git pull`（会生成无意义的 merge commit），不要用 `--force` 覆盖远端的发布记录。`index.json` 两边常由 `pnpm site:market` 生成出完全相同的内容，rebase 一般不冲突；若 `pnpm check` 报它过期，重新跑一次 `pnpm site:market` 即可。
+- **`index.json` 是发布工作流拥有的生成物，提交钩子会替你采用远端那份。** 它由 `pnpm site:market` 从 catalog 与 npm 现况生成，而发布工作流会在你工作期间推一条更新它的提交；`site:market:check` 又逐字节比对，于是「有未提交改动 + 本地落后」会死锁：commit 被闸门拦下，rebase 又要求干净工作区。所以 `.husky/pre-commit` 在满足**全部**下列条件时，会用 `git checkout origin/main -- index.json` 采用远端副本并暂存：`origin/main` 存在、它不是 HEAD 的祖先（本地落后或分叉）、本地提交没动过 `index.json`、本次也没暂存 `index.json` 的改动。作者自己改过的那份永远保留——那时本地才是更新的陈述，交由闸门判定。钩子**不联网**，只读本地已知的 `origin/main`，所以同步这一步仍然要靠上面的 `git fetch`。
 
 ## 本地 pnpm 调用
 

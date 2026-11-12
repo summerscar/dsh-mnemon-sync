@@ -3,4 +3,30 @@
 # instead, so this only ever runs once per commit.
 #
 # Husky v9 runs this file with sh and does not need a shebang or husky.sh sourcing.
+
+# THE STALE-INDEX TRAP, and why the gate adopts a file it is about to judge.
+#
+# index.json is generated content owned by the release workflow: that workflow
+# pushes `chore: record npm releases and plugin market index` while you are
+# working, and `site:market:check` compares the committed copy byte-for-byte
+# against a fresh npm reading. So a commit prepared before that push lands is
+# judged against an index this commit never touched — and because a rebase needs
+# a clean tree, there is no way forward: commit is blocked, rebasing is blocked.
+#
+# When HEAD is simply BEHIND origin/main, the remote copy is the workflow's own
+# authority and adopting it changes nothing about what this commit proposes. A
+# commit that stages (or has committed) its own index.json edit keeps it: there
+# the local copy is the newer statement, and the check must judge that instead.
+#
+# Deliberately NO `git fetch` here: this reads the origin/main already known to
+# the repository. Fetching inside a commit hook would add network latency and a
+# failure mode to every commit, and the sync step documented in AGENTS.md is
+# where the ref gets refreshed.
+if git rev-parse --verify -q origin/main >/dev/null 2>&1 &&
+  ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null &&
+  git diff --quiet origin/main...HEAD -- index.json 2>/dev/null &&
+  git diff --cached --quiet -- index.json 2>/dev/null; then
+  git checkout origin/main -- index.json && git add index.json
+fi
+
 pnpm check
