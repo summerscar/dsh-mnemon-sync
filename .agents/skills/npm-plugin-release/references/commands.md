@@ -140,7 +140,7 @@ npm view "$PKG"@latest repository homepage license engines --json
 
 1. `site/catalog.json` 增加 `plugins[]` 条目：`slug`（去作用域去 `dsh-` 前缀）、`package`、`category`（须在 `categories` 里）、`kind`、`title`/`summary` 双语、`readme.zh`/`readme.en` 包内相对路径、`repository`、`directory`。
 2. 一处简介改了，同步：`package.json description`、`locale/zh.json`+`en.json` 的 `meta`、`catalog.json summary`、根 README 插件表格、包内双语 README。
-3. `screenshots.json` 别是 `{}`，补图后站点详情页才有截图。
+3. 站点详情页的截图来自 **README 里的 `<img>`**（图片放包内 `assets/` 并在 README 嵌入），**站点不读 `screenshots.json`**。`screenshots.json` 是给第三方市场用的清单，**格式是数组**（如 `["assets/shot.png"]`），别写成 `{}`——写成对象没人读得出来。
 4. ```sh
    pnpm site:market          # 刷新根目录 index.json
    pnpm site:test

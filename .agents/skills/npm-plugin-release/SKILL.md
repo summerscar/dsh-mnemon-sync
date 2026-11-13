@@ -67,7 +67,7 @@ gh workflow run npm-publish.yml --ref main \
 
 1. `scripts/plugin-release-states.json`：该包 `state: draft → testing`，重写中英 `reason`（指向「首次交付验收中、待授权发布」）。
 2. `pnpm release:docs` 生成根 README 两张表；`pnpm release:check` + `pnpm lint` + `git diff --check` 复核。
-3. 确认 `package.json`：`engines.dsh` 开放下界、`repository` 与 GitHub 大小写一致、`homepage` 指站点详情页、`files` 列全新增文件、`screenshots.json` 别是空的 `{}`。
+3. 确认 `package.json`：`engines.dsh` 开放下界、`repository` 与 GitHub 大小写一致、`homepage` 指站点详情页、`files` 列全新增文件、`screenshots.json` 别是空数组 `[]`（**是数组不是对象**，写成 `{}` 第三方市场读不出来）。
 4. **先确认 Trusted Publisher 前置已就绪**，再谈 commit/push/触发，别白跑一次失败记录。
 
 ## 发布成功后：收录与收尾
@@ -76,7 +76,7 @@ npm 上有 `latest` 之后才做（规则见 `site/AGENTS.md`）：
 
 1. `site/catalog.json` 加条目：`slug` 用去作用域去 `dsh-` 前缀的小写连字符、`summary`/`title` 双语、`readme.zh`/`readme.en` 填包内相对路径、`directory` 填 `plugins/<包目录>`。
 2. 同步根 README 插件表格（一处简介改了，`package.json description`、`locale/*/meta`、`catalog summary`、根 README、包内 README 几处一起改）。
-3. 跑 `pnpm site:market` 刷新根目录 `index.json`，`pnpm site:test` + `pnpm site:market:check` 复核；详情页缺图就补 `screenshots.json`。
+3. 跑 `pnpm site:market` 刷新根目录 `index.json`，`pnpm site:test` + `pnpm site:market:check` 复核。**详情页缺图补的是「包内 `assets/` + README 中英各嵌一张 `<img>`」，不是 `screenshots.json`**——站点只渲染 README 里的图；`screenshots.json`（数组格式）只给第三方市场用。
 4. 状态推进 `published` 由发布器 `commit` 步骤自动完成，**不要手改** `publication` 凭据。
 5. 第三方市场收录交给 `dsh-plugin-market-release`。
 
@@ -94,9 +94,13 @@ npm 上有 `latest` 之后才做（规则见 `site/AGENTS.md`）：
 - 改了清单忘了 `pnpm release:docs` → `release:check` 的 `--check-docs` 直接红。
 - 手改 `version` 或 `dshRelease.contentHash` → 计划 preflight 校验 sourceHash 不匹配。
 - 新增包内文件没列进 `package.json` 的 `files`（需要外部解析时还有 `exports`）→ `npm pack` 漏文件，站点构建读不到。
-- `screenshots.json` 是 `{}` → 详情页无图。
+- `screenshots.json` 写成 `{}` → 格式错（该是数组），第三方市场读不出截图；**但站点详情页有没有图跟它无关**，站点只认 README 里的 `<img>`。
 - 只改 `site/`、根 README 或未打包测试时**保持当前发布状态**，不要顺手推进生命周期。
 - 首发后忘了收录 catalog / 刷 `index.json` → 站点和 market 索引停留在旧数据。
+- **用 `--no-verify` 跳过 pre-commit 钩子** → 钩子根本不启动，reflog / 提交信息 / bash history **都不留痕**，事后查不出来不等于没发生。`pnpm check` 正是为防止「本地过了、仓库没过」。嫌慢该改钩子或分工，不是绕过；万不得已要跳（如钩子自身有 bug），**必须在提交信息里写明原因和事后补跑结果**。
+- **以为 `engines.dsh` 的预发布范围会漏掉下一个 rc** → 不会。DSH 用 `includePrerelease: true` 判定（`dsh-app-boot/lib/index.js` 的 `unmetRequirements()`），`0.2.3-rc.1` / `0.3.0-rc.1` 都放行；而 pnpm/npm **根本不校验** `engines.dsh` 这个自定义字段。别为「可能会漏」单独发一版。真正要留意的是反过来的风险：**manifest 有 `engines.dsh` 时 peer 完全不参与判定**，哪天有人把它删了，peer 立刻接手，那些开放下界的预发布范围才开始漏版本——删它属于破坏性改动，不是清理。
+- **从会话日志读用量/成败时读错字段位置** → `assistant/message` 的 token 用量在 **`data.usage`**，`data.message.usage` 恒为 `undefined`；`tool/result` **没有 `data.ok` 字段**，成败看 **`data.message.isError`**，HTTP 细节在 `data.meta`（`statusCode` / `truncated` / `sources` / `answer`）。拿 `undefined` 当「产品没记录」之前，先 `Object.keys(data)` 把容器键打出来。
+- **只验 adapter 就宣称「链路通了」** → 脚本直连 `pi-adapter` 只能证明「凭据取得 → 模型调起 → 流式返回」，证明不了界面路径（切模型后路由到哪个 provider、UI 取凭据走哪条路、会话是否落盘、工具调用能否回填）。两条路径要分别验，结论也分别写。
 
 ## 授权边界
 
