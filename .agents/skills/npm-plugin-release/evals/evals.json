@@ -1,0 +1,41 @@
+{
+  "skill_name": "npm-plugin-release",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "开始发布 @summerscar/dsh-connect-agentscope-platform，它在 scripts/plugin-release-states.json 里还是 draft，npm view 返回 404。请按仓库规矩把本地能做的准备做完，然后告诉我下一步需要什么授权。",
+      "expected_output": "先只读核对基线，把清单推进到 testing 并重写中英 reason，跑 pnpm release:docs + release:check + lint + git diff --check；明确指出首次发布存在 Trusted Publisher 鸡生蛋死锁（包不存在无法配 OIDC），列出 break-out 路线并要用户确认；不擅自 commit/push/触发工作流。",
+      "files": [],
+      "expectations": [
+        "识别出 npm 404 = 首次发布，不能直接触发 first_release",
+        "把 lifecycle 从 draft 推进到 testing 且同步两张 README 表",
+        "没有执行任何 commit / push / gh workflow run",
+        "指出 Trusted Publisher 需包已存在且 2 天内验证"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "dsh-mnemon-sync 已经是 published，我改了它的 README 和 client.js，帮我走一遍发版流程，用户已授权 commit+push。",
+      "expected_output": "保持 published 状态不动；跑 lint 与相关测试；commit 前 fetch+rebase，精确 git add（不用 -A），push 前再 fetch 一次；说明 push 会自动触发 npm-publish.yml 的 plan→check→publish→commit，并提醒 index.json 由工作流写回、别手改版本/contentHash。",
+      "files": [],
+      "expectations": [
+        "没有把 published 包降级或改动 publication 凭据",
+        "commit 前与 push 前各做一次 fetch 对齐远端",
+        "用精确文件列表暂存，未使用 git add -A",
+        "说明发布器会自动 bump 版本并写回 package.json / index.json"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "刚把新插件首次发到 npm 成功了，CI 已经把状态写成 published，现在 catalog 里还没有它。接下来该做什么？",
+      "expected_output": "进入发布后收录：site/catalog.json 加条目（slug/双语 title+summary/readme 路径/directory）、同步各处简介、补 screenshots.json、跑 pnpm site:market 刷新根目录 index.json 并 site:test / site:market:check；提醒第三方市场用 dsh-plugin-market-release，published 与 publication 凭据别手改。",
+      "files": [],
+      "expectations": [
+        "先确认 npm 有 latest 才收录 catalog",
+        "刷新根目录 index.json 用 pnpm site:market",
+        "指出第三方市场收录属于 dsh-plugin-market-release 而非本 skill",
+        "没有手动改写 publication 凭据"
+      ]
+    }
+  ]
+}

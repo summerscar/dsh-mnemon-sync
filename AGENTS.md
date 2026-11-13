@@ -1,7 +1,7 @@
 # AGENTS.md
 
 本仓库是 summerscar 的 DSH 插件 monorepo，托管插件发布站 <https://summerscar.github.io/dsh-plugins/>。
-专项规则按需加载：在 `plugins/**` 下开发插件时遵循 `plugins/AGENTS.md`；改动 `site/**` 时遵循 `site/AGENTS.md`（站点结构、catalog 规则、渲染与部署）。
+专项规则按需加载：在 `plugins/**` 下开发插件时遵循 `plugins/AGENTS.md`；改动 `site/**` 时遵循 `site/AGENTS.md`（站点结构、catalog 规则、渲染与部署）；往第三方市场（awesome-dsh-plugin、dsh-plugin-index）投递或更新条目时遵循 `.agents/skills/dsh-plugin-market-release/SKILL.md`。
 
 ## 排查问题的顺序
 

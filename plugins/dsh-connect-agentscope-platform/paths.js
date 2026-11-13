@@ -46,6 +46,20 @@ export const STATE_DIR_NAME = 'connect-agentscope-platform'
 /** Prefix for the point files inside the state directory. */
 export const FILE_PREFIX = 'connect-agentscope-platform'
 
+/** The account-pool document: which accounts exist and which one is billed to. */
+export const ACCOUNTS_FILE = 'connect-agentscope-platform-accounts.json'
+
+/** The measurement log: probe outcomes and credit snapshots, per account. */
+export const MEASUREMENTS_FILE = 'connect-agentscope-platform-measurements.json'
+
+/**
+ * Account ids are directory names under `vault/accounts/`, so the allowed shape
+ * is also the traversal guard: exactly 24 lowercase hex digits, and nothing
+ * else. Every account has that shape, so there is no reserved id and no second
+ * form to special-case.
+ */
+export const ACCOUNT_ID_RE = /^[0-9a-f]{24}$/
+
 /** Expand a leading `~` (the host accepts an expanded path, not a shell string). */
 function expandHomePath(value) {
   if (value === '~') return homedir()
@@ -119,12 +133,110 @@ export function pluginPaths(options = {}) {
   }
 }
 
+/**
+ * Where the account-pool document lives.
+ *
+ * A helper rather than an extra key on {@link pluginPaths}: that object's key
+ * set is what `CreditEngine` and `CheckinScheduler` destructure, and the
+ * single-account layout it describes must keep meaning exactly what it meant
+ * before the pool existed.
+ *
+ * @param {ReturnType<typeof pluginPaths>} paths
+ */
+export function accountsFile(paths) {
+  return join(paths.stateDir, ACCOUNTS_FILE)
+}
 
-/** Create the state root and the vault. */
+/** Where the measurement log lives (see {@link accountsFile} on why not a key). */
+export function measurementsFile(paths) {
+  return join(paths.stateDir, MEASUREMENTS_FILE)
+}
+
+/**
+ * The paths one account owns, in the same shape as {@link pluginPaths}.
+ *
+ * Only the four per-account files move: credentials, the credit snapshot
+ * history and the check-in record are per-account state, while the settings
+ * document, the metadata cache and the two pool documents describe the whole
+ * install and therefore stay at the state root. Returning the same key set as
+ * `pluginPaths()` is what lets `CreditEngine` and `CheckinScheduler` accept this
+ * object unchanged — they read `paths.login` / `paths.log` / `paths.checkin`
+ * and never need to know which account they belong to.
+ *
+ * The id is validated here rather than trusted from a caller: it becomes a
+ * directory name, and `..` in a directory name is how a plugin writes outside
+ * its own state directory.
+ *
+ * @param {ReturnType<typeof pluginPaths>} base - the install-wide paths
+ * @param {string} id - a validated account id
+ * @returns {ReturnType<typeof pluginPaths>} that account's paths
+ */
+export function accountPaths(base, id) {
+  if (!base || typeof base !== 'object') throw new TypeError('accountPaths needs the base paths from pluginPaths()')
+  if (typeof id !== 'string' || !ACCOUNT_ID_RE.test(id)) throw new TypeError(`invalid account id: ${JSON.stringify(id)}`)
+  if (!isInside(base.vaultDir, join(base.vaultDir, 'accounts', id))) throw new TypeError(`account id escapes the vault: ${JSON.stringify(id)}`)
+
+  const dir = join(base.vaultDir, 'accounts', id)
+  return {
+    ...base,
+    login: join(dir, 'login.json'),
+    modelKey: join(dir, 'model-key.json'),
+    log: join(dir, 'log.json'),
+    checkin: join(dir, 'checkin.json'),
+  }
+}
+
+/** The directory holding every account's own vault. */
+export function accountsDir(base) {
+  return join(base.vaultDir, 'accounts')
+}
+
+/** Create the state root, the vault, and the per-account vault root. */
 export function ensureStateDirs(paths) {
   ensureDir(paths.stateDir)
   ensureDir(paths.vaultDir)
+  // One directory per account holds credentials, so it is owner-only like the
+  // vault itself and is created eagerly: a later `writeFileSync` must never be
+  // the thing that creates a world-readable parent.
+  ensureDir(join(paths.vaultDir, 'accounts'))
   return paths
+}
+
+/**
+ * Create everything one account's paths need, then return them.
+ *
+ * `CreditEngine` and `CheckinScheduler` create the state root and the vault but
+ * know nothing about per-account directories, and neither writes a directory of
+ * its own — they expect the caller to have made it. That caller is this
+ * function, and it runs *before* either class is constructed so a first save
+ * cannot fail on a missing parent.
+ *
+ * @param {ReturnType<typeof pluginPaths>} paths - from {@link accountPaths}
+ */
+export function ensureAccountDirs(paths) {
+  ensureStateDirs(paths)
+  ensureDir(join(paths.vaultDir, 'accounts', accountIdOf(paths)))
+  return paths
+}
+
+/**
+ * Recover the account id from a path set built by {@link accountPaths}.
+ *
+ * The credential path is `<vault>/accounts/<id>/login.json`, so the id is the
+ * directory two levels up from `login`. Kept private-ish (exported for the
+ * runtime's logging only) so callers do not re-derive the layout by hand.
+ *
+ * @param {ReturnType<typeof pluginPaths>} paths
+ * @returns {string}
+ */
+export function accountIdOf(paths) {
+  const marker = `${sep}accounts${sep}`
+  const index = paths.login.lastIndexOf(marker)
+  if (index === -1) throw new TypeError('these paths do not belong to an account')
+  const rest = paths.login.slice(index + marker.length)
+  const id = rest.slice(0, rest.indexOf(sep))
+  if (!ACCOUNT_ID_RE.test(id)) throw new TypeError(`invalid account id: ${JSON.stringify(id)}`)
+  return id
 }
 
 /** Whether `child` is `parent` itself or lives under it (both resolved first). */

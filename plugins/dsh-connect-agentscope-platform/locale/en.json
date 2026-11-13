@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "AgentScope Platform",
-    "description": "AgentScope Platform for DSH: an opt-in OpenAI-compatible model provider whose catalog can be fetched from the API, added by hand and edited row by row, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list."
+    "description": "AgentScope Platform inside DeepSeek Harness: manage several platform accounts (switch the billing account by hand, pick one by remaining Credits, probe and flag unhealthy ones), an optional OpenAI-compatible model provider whose catalog you can fetch, add to and edit row by row, an available-Credits and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, the balance, contribution grants, usage detail and the price list. Switching accounts affects new requests only and never interrupts a session already in flight."
   }
 }

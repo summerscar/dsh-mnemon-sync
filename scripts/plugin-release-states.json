@@ -16,10 +16,10 @@
     },
     {
       "name": "@summerscar/dsh-connect-agentscope-platform",
-      "state": "draft",
+      "state": "testing",
       "reason": {
-        "zh": "新插件开发中：可选模型供应商、额度与用量、每日签到尚未完成首次交付验收。",
-        "en": "Under development: the optional model provider, credits and usage, and the daily check-in have not completed first-delivery acceptance."
+        "zh": "首次交付进入检查与验收：账号池、额度同源与设置面板已完成，测试、打包与发布校验已通过，等待明确授权后做首次发布。",
+        "en": "First delivery is in check and acceptance: the account pool, single-source credit readings and settings panel are done, with tests, packaging and release checks passing; awaiting explicit approval for the first publication."
       }
     }
   ]

@@ -1,7 +1,7 @@
 {
   "name": "@summerscar/dsh-connect-agentscope-platform",
   "version": "0.1.0",
-  "description": "AgentScope Platform for DeepSeek Harness: an optional OpenAI-compatible model provider you switch on when you want it, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credit balance, contribution grants and a paginated usage-detail query.",
+  "description": "AgentScope Platform for DeepSeek Harness: an optional OpenAI-compatible model provider you switch on when you want it, a pool of platform accounts with manual switching and credit-aware auto-selection, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credit balance, contribution grants and a paginated usage-detail query.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -15,6 +15,8 @@
     "./icon": "./icon.svg",
     "./package.json": "./package.json",
     "./paths": "./paths.js",
+    "./measurements": "./measurements.js",
+    "./account-runtime": "./account-runtime.js",
     "./pi-adapter": "./pi-adapter.js"
   },
   "files": [
@@ -34,6 +36,8 @@
     "assets/*",
     "screenshots.json",
     "paths.js",
+    "measurements.js",
+    "account-runtime.js",
     "pi-adapter.js"
   ],
   "keywords": [
@@ -71,8 +75,8 @@
     "catalog": {
       "category": "tool",
       "summary": {
-        "en": "AgentScope Platform for DSH: an optional OpenAI-compatible provider you switch on yourself, a credit readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list.",
-        "zh": "把 AgentScope Platform 接入 DSH：可自行开关的 OpenAI 兼容模型供应商、输入框下方的额度读数，以及包含每日签到、可用 Credits、可兑换贡献值、用量明细与价目表的设置面板。"
+        "en": "AgentScope Platform for DSH: an optional OpenAI-compatible provider you switch on yourself, a pool of platform accounts you can switch between by hand or by remaining credits, a credit readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list.",
+        "zh": "把 AgentScope Platform 接入 DSH：可自行开关的 OpenAI 兼容模型供应商、可手动切换或按剩余额度自动选优的平台账号池、输入框下方的额度读数，以及包含每日签到、可用 Credits、可兑换贡献值、用量明细与价目表的设置面板。"
       },
       "capabilities": [
         "webServer",

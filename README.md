@@ -41,7 +41,7 @@ The code is the developer documentation. Releases follow the [release guide](REL
 <!-- plugin-release-states:start -->
 | Package | Lifecycle | Notes |
 | --- | --- | --- |
-| [@summerscar/dsh-connect-agentscope-platform](plugins/dsh-connect-agentscope-platform/README.md) | Draft (`draft`) | Under development: the optional model provider, credits and usage, and the daily check-in have not completed first-delivery acceptance. |
+| [@summerscar/dsh-connect-agentscope-platform](plugins/dsh-connect-agentscope-platform/README.md) | Testing (`testing`) | First delivery is in check and acceptance: the account pool, single-source credit readings and settings panel are done, with tests, packaging and release checks passing; awaiting explicit approval for the first publication. |
 | [@summerscar/dsh-mnemon-sync](plugins/dsh-mnemon-sync/README.md) | Published (`published`) | Published on npm; subsequent versions follow the normal update workflow. |
 <!-- plugin-release-states:end -->
 

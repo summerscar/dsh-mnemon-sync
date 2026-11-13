@@ -61,6 +61,12 @@ window.__ModuleLoader__.load({
         Object.hasOwn(values ?? {}, name) ? String(values[name]) : whole)
     }
     const API = '/api/agentscope-platform'
+    /**
+     * The platform this plugin talks to — where an account, its Credits and its
+     * model keys actually live. Linked from the panel header so the reader can
+     * get to the console without hunting for the hostname.
+     */
+    const PLATFORM_URL = 'https://platform.agentscope.io/'
 
     // -----------------------------------------------------------------------
     // Copy
@@ -70,6 +76,8 @@ window.__ModuleLoader__.load({
       settings: 'AgentScope',
       title: 'AgentScope Platform',
       subtitle: '模型供应商（可选）、额度与用量、每日签到',
+      pageLead: '把 AgentScope 平台账号接进 DSH：用它当模型供应商、在输入框下方看额度、每天自动签到。',
+      platformLink: 'platform.agentscope.io',
       build: '构建',
       loading: '加载中…',
       save: '保存',
@@ -87,30 +95,65 @@ window.__ModuleLoader__.load({
       add: '添加',
       unknown: '未知',
 
+      // account pool
+      sectionAccounts: '账号池',
+      accountHint: '可以并存多个账号，新的请求用「当前」这个的密钥。',
+      accountAdd: '添加账号',
+      accountLabel: '标签',
+      accountCurrent: '计费账号',
+      accountSwitch: '切换',
+      accountTest: '测活',
+      accountDisable: '禁用',
+      accountEnable: '启用',
+      accountRename: '重命名',
+      accountEdit: '编辑',
+      accountEditHint: '这里改的是这个账号自己的登录凭据与模型密钥，不会影响其他账号。',
+      accountTokenPlaceholder: '粘贴这个账号的 refreshToken',
+      accountRemove: '删除',
+      accountRemoveConfirm: '确认删除该账号？',
+      accountUntitled: '未命名账号',
+      accountStateCurrent: '当前',
+      accountStateDisabled: '已禁用',
+      accountStateExpired: '凭据失效',
+      accountStateLowCredit: '额度低',
+      accountAutoSwitch: '按额度自动选号',
+      accountAutoSwitchHint: '当前账号额度低于阈值时，自动换成额度更高的那个。',
+      accountThreshold: '阈值',
+      accountEmpty: '还没有任何账号。添加一个即可开始。',
+      accountNoneYet: '暂无账号',
+      accountCount: '{count} 个账号',
+      accountSaving: '保存中…',
+      accountTestFailed: '测活失败',
+      accountTestOk: '测活通过',
+      accountCredits: '可用额度',
+      accountLastRefreshed: '最近刷新',
+      accountModelKey: 'sk-as- 密钥（可选）',
+      accountActivate: '添加后设为当前',
+      accountSetCurrent: '设为当前',
+      accountSwitchHint: '正在跑的回答不受影响，从下一次提问起换用新账号。',
+      accountNeedLabel: '标签不能为空',
+      accountNeedToken: '请填写 refreshToken',
+      accountsGlobalHint: '全局设置',
+      accountCannotDisableLast: '不能禁用最后一个可用账号',
+
       // credentials
-      sectionCredentials: '凭证与模型密钥',
-      credHint: '登录态只用于额度、贡献值与用量查询；模型调用另用平台下发的 sk-as- 密钥，两者不能混用。凭证明文只留在本机，页面只显示掩码。',
-      accessToken: '登录 accessToken',
       refreshToken: '登录 refreshToken',
-      tokenPlaceholderMasked: '已保存（留空表示不修改）',
-      autoRefresh: '自动续期',
-      accessStatus: '登录态状态',
-      accessValid: '有效',
-      accessRefreshOnly: '仅 refreshToken（首次请求自动换取 accessToken）',
-      accessExpiring: '仅 accessToken（约 2 小时后失效）',
-      accessMissing: '未配置',
       refreshFailed: '换取 accessToken 失败',
       phoneExchanged: '已保存并完成续期；浏览器里同一账户的登录态会随之失效，这是平台设计',
-      refreshOnlyHint: '只需填 refreshToken 即可：保存后会立刻用它换出一对新的 token 并落盘。',
       refreshTokenHowTo: '怎么获取：在已登录 platform.agentscope.io 的浏览器里按 F12 打开控制台，执行下面这行，把结果粘到上面的输入框。',
       refreshTokenSnippet: "localStorage.getItem('refreshToken')",
-      refreshTokenSnippetCopy: 'Chrome 也可以用 copy(...) 包裹，直接复制到剪贴板。',
-      lastRefreshed: '最近刷新',
-      neverRefreshed: '尚未刷新',
       expiresIn: '剩余有效期',
-      modelKey: '模型 API Key',
       modelKeyHint: '调用模型用 Authorization: Bearer sk-as-…，不要用登录 token。',
+      modelKeyEither: '两条路都行，填同一个输入框：自动获取，或手动粘贴自己的密钥。',
+      modelKeyFetchHint: '用上面那个登录 refreshToken 换出平台密钥，换到就自动保存。',
+      modelKeyFetchNote: '有时会取不到密钥，这是平台侧的规则，不是出错。取不到就手动粘贴。',
+      modelKeyCurrent: '当前密钥',
       modelKeyMissing: '未配置',
+      modelKeySourcePasted: '手动粘贴',
+      modelKeySourceFetched: '自动获取',
+      tokenPasteFirst: '先粘贴 refreshToken 再保存。',
+      tokenHowToToggle: '怎么获取 refreshToken',
+      modelKeyPasteFirst: '先粘贴密钥再保存；没有 sk-as- 密钥时请点「用登录态获取」。',
       modelKeyPaste: '粘贴 sk-as- 密钥',
       modelKeyFetch: '用登录态获取',
       modelKeyReset: '重置并重新获取',
@@ -134,6 +177,7 @@ window.__ModuleLoader__.load({
       // catalog
       sectionCatalog: '模型目录',
       catalogHint: '可从接口获取、手动添加，并逐行修改元数据。新行默认「文本 + 图片」。',
+      catalogSummary: '共 {count} 个模型 · 元数据 {at}',
       fetchModels: '获取可用模型',
       fetching: '正在询问平台…',
       fetchEmpty: '平台没有列出任何模型，请手动添加。',
@@ -148,7 +192,6 @@ window.__ModuleLoader__.load({
       modelReasoning: '推理等级',
       modelReasoningHint: '启用后把档位写入请求的推理参数；平台没有统一的参数名，可自行填。',
       modelReasoningOff: 'Off（不发送）',
-      modelReasoningValue: 'API 参数值',
       modelAdvanced: '模型选项',
       modelsEmpty: '目录为空；请添加模型或点「获取可用模型」。',
       modelIdRequired: '模型 ID 不能为空',
@@ -170,6 +213,7 @@ window.__ModuleLoader__.load({
 
       // check-in
       sectionCheckin: '每日签到',
+      checkinSummary: '今日 {day}',
       checkinHint: '平台没有独立的签到接口：「每日登录 +1」由服务端在登录时自动计分。这里每天用有效登录态做一次保活，再回查贡献值明细确认当天是否真的计入。',
       checkinEnable: '启用每日自动签到',
       checkinRunNow: '立即执行一次',
@@ -196,6 +240,7 @@ window.__ModuleLoader__.load({
 
       // pricing
       sectionPricing: '价目表',
+      pricingSummary: '展开查看平台公布的参考价。',
       pricingHint: '平台控制台公布的参考价（Credits），按能力分组。默认收起，展开查看明细。',
       pricingLoad: '加载价目表',
       pricingLoading: '加载中…',
@@ -217,7 +262,8 @@ window.__ModuleLoader__.load({
 
       // usage
       sectionUsage: '用量明细',
-      usageHint: '按日期范围、记录类型与模型查询，支持分页。时间按平台返回的北京时间（UTC+8）解析后，转换为本机本地时区显示。',
+      usageSummary: '按日期范围、记录类型与模型查询调用明细，展开后翻页查看。',
+      usageHint: '时间按北京时间（UTC+8）显示。',
       usageType: '记录类型',
       usageTypeUsage: '模型调用（扣费）',
       usageTypeRedeem: '积分发放 / 兑换',
@@ -267,6 +313,8 @@ window.__ModuleLoader__.load({
       settings: 'AgentScope',
       title: 'AgentScope Platform',
       subtitle: 'Optional model provider, credits and usage, daily check-in',
+      pageLead: 'Brings an AgentScope platform account into DSH: use it as a model provider, watch Credits under the composer, and keep the daily check-in running.',
+      platformLink: 'platform.agentscope.io',
       build: 'Build',
       loading: 'Loading…',
       save: 'Save',
@@ -284,29 +332,64 @@ window.__ModuleLoader__.load({
       add: 'Add',
       unknown: 'Unknown',
 
-      sectionCredentials: 'Credentials and model key',
-      credHint: 'The login token only drives credits, contributions and usage. Model calls use a separate sk-as- key issued by the platform; the two are never interchangeable. Credentials stay on the host — this page only ever sees a mask.',
-      accessToken: 'Login accessToken',
+      // account pool
+      sectionAccounts: 'Account pool',
+      accountHint: 'Several accounts can coexist. New requests use the key of the account marked Current.',
+      accountAdd: 'Add account',
+      accountLabel: 'Label',
+      accountCurrent: 'Billing account',
+      accountSwitch: 'Switch',
+      accountTest: 'Probe',
+      accountDisable: 'Disable',
+      accountEnable: 'Enable',
+      accountRename: 'Rename',
+      accountEdit: 'Edit',
+      accountEditHint: 'These fields belong to THIS account only. Changing them leaves every other account alone.',
+      accountTokenPlaceholder: "Paste this account's refreshToken",
+      accountRemove: 'Remove',
+      accountRemoveConfirm: 'Remove this account?',
+      accountUntitled: 'Untitled account',
+      accountStateCurrent: 'Current',
+      accountStateDisabled: 'Disabled',
+      accountStateExpired: 'Credentials expired',
+      accountStateLowCredit: 'Low credit',
+      accountAutoSwitch: 'Pick by credit automatically',
+      accountAutoSwitchHint: 'When the current account drops below the threshold, switch to the one with more credit.',
+      accountThreshold: 'Threshold',
+      accountEmpty: 'No accounts yet. Add one to get started.',
+      accountNoneYet: 'No accounts',
+      accountCount: '{count} accounts',
+      accountSaving: 'Saving…',
+      accountTestFailed: 'Probe failed',
+      accountTestOk: 'Probe passed',
+      accountCredits: 'Available credit',
+      accountLastRefreshed: 'Last refreshed',
+      accountModelKey: 'sk-as- key (optional)',
+      accountActivate: 'Make this the billing account',
+      accountSetCurrent: 'Make current',
+      accountSwitchHint: 'A reply already streaming is unaffected; the next prompt uses the new account.',
+      accountNeedLabel: 'A label is required',
+      accountNeedToken: 'A refreshToken is required',
+      accountsGlobalHint: 'Global setting',
+      accountCannotDisableLast: 'The last usable account cannot be disabled',
+
       refreshToken: 'Login refreshToken',
-      tokenPlaceholderMasked: 'Saved (leave blank to keep)',
-      autoRefresh: 'Auto-refresh',
-      accessStatus: 'Login status',
-      accessValid: 'Valid',
-      accessRefreshOnly: 'Refresh token only (access token fetched on the first call)',
-      accessExpiring: 'Access token only (expires in about 2 hours)',
-      accessMissing: 'Not configured',
       refreshFailed: 'Could not exchange for an access token',
       phoneExchanged: 'Saved and refreshed. The browser session for this account is now invalidated — that is the platform\'s design.',
-      refreshOnlyHint: 'A refresh token is all you need: saving it exchanges it for a fresh pair immediately.',
       refreshTokenHowTo: 'How to get it: in the browser that is signed in to platform.agentscope.io, open the console (F12) and run the line below, then paste the result above.',
       refreshTokenSnippet: "localStorage.getItem('refreshToken')",
-      refreshTokenSnippetCopy: 'In Chrome you can wrap it in copy(...) to put it straight on the clipboard.',
-      lastRefreshed: 'Last refreshed',
-      neverRefreshed: 'Never',
       expiresIn: 'Time left',
-      modelKey: 'Model API key',
       modelKeyHint: 'Model calls use Authorization: Bearer sk-as-…, never the login token.',
+      modelKeyEither: 'Either route fills the same field: fetch it automatically, or paste your own key.',
+      modelKeyFetchHint: 'Exchanges the login refreshToken above for the platform key, and saves it when one comes back.',
+      modelKeyFetchNote: 'A fetch sometimes comes back empty \u2014 that is the platform\u2019s rule, not a failure. Paste a key by hand in that case.',
+      modelKeyCurrent: 'Current key',
       modelKeyMissing: 'Not configured',
+      modelKeySourcePasted: 'Pasted',
+      modelKeySourceFetched: 'Fetched',
+      tokenPasteFirst: 'Paste a refreshToken first.',
+      tokenHowToToggle: 'How to get a refreshToken',
+      modelKeyPasteFirst: 'Paste a key first. Without one, use "Fetch with login" above.',
       modelKeyPaste: 'Paste an sk-as- key',
       modelKeyFetch: 'Fetch with the login token',
       modelKeyReset: 'Reset and fetch a new one',
@@ -328,6 +411,7 @@ window.__ModuleLoader__.load({
 
       sectionCatalog: 'Model catalog',
       catalogHint: 'Fetch from the API, add rows by hand, and edit each row. New rows start as text + image.',
+      catalogSummary: '{count} models · metadata {at}',
       fetchModels: 'Fetch available models',
       fetching: 'Asking the platform…',
       fetchEmpty: 'The platform listed no models; add them by hand.',
@@ -342,7 +426,6 @@ window.__ModuleLoader__.load({
       modelReasoning: 'Reasoning tiers',
       modelReasoningHint: 'When enabled, the tier is written into the request. The platform publishes no fixed parameter name, so you can set it.',
       modelReasoningOff: 'Off (send nothing)',
-      modelReasoningValue: 'API value',
       modelAdvanced: 'Model options',
       modelsEmpty: 'The catalog is empty; add a model or fetch the list.',
       modelIdRequired: 'A model ID is required',
@@ -363,6 +446,7 @@ window.__ModuleLoader__.load({
       metaUser: 'Manual',
 
       sectionCheckin: 'Daily check-in',
+      checkinSummary: 'Today {day}',
       checkinHint: 'The platform has no check-in endpoint: the "daily login +1" contribution is scored by the server when the account signs in. This keeps the login alive once a day and then reads the contribution ledger back to confirm whether today was actually scored.',
       checkinEnable: 'Enable the daily check-in',
       checkinRunNow: 'Run once now',
@@ -388,6 +472,7 @@ window.__ModuleLoader__.load({
 
       // pricing
       sectionPricing: 'Price list',
+      pricingSummary: 'Open to read the platform\u2019s published prices.',
       pricingHint: "The console's published reference prices in Credits, grouped by capability. Collapsed by default; expand a group for the figures.",
       pricingLoad: 'Load price list',
       pricingLoading: 'Loading…',
@@ -407,7 +492,8 @@ window.__ModuleLoader__.load({
       pricingColUnit: 'Billed per',
       pricingNeedToken: 'No login accessToken yet — the price list cannot load.',
       sectionUsage: 'Usage detail',
-      usageHint: 'Query by date range, record type and model, with pagination. Times are read as the platform\'s Beijing wall clock (UTC+8) and shown in your local time zone.',
+      usageSummary: 'Query model calls by date range, record type and model; open to page through them.',
+      usageHint: 'Times are shown in Beijing time (UTC+8).',
       usageType: 'Record type',
       usageTypeUsage: 'Model calls (charged)',
       usageTypeRedeem: 'Credit grants / redemptions',
@@ -455,9 +541,24 @@ window.__ModuleLoader__.load({
     // Helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Attach the account a request is ABOUT.
+     *
+     * Every endpoint that reads or writes one account accepts `?accountId=`
+     * (a POST takes it in the body instead, see `post`). An EMPTY id is left off
+     * entirely: the host then falls back to the billing account, which is exactly
+     * what a request that names no account should do — and it keeps the shape of
+     * an old request byte-identical for a cached bundle.
+     */
+    function withAccount(path, accountId) {
+      if (typeof accountId !== 'string' || accountId === '') return path
+      const separator = path.includes('?') ? '&' : '?'
+      return `${path}${separator}accountId=${encodeURIComponent(accountId)}`
+    }
+
     /** One fetch against this plugin's own API, with the JSON body parsed. */
-    async function api(path, init) {
-      const response = await fetch(`${API}${path}`, init)
+    async function api(path, init, accountId) {
+      const response = await fetch(`${API}${withAccount(path, accountId)}`, init)
       const text = await response.text()
       let body
       try { body = text === '' ? {} : JSON.parse(text) } catch { throw new Error(text.slice(0, 200) || `HTTP ${response.status}`) }
@@ -465,12 +566,14 @@ window.__ModuleLoader__.load({
       return body
     }
 
-    /** A POST with a JSON body. */
-    function post(path, body) {
+    /** A POST with a JSON body. `accountId` rides in the body, not the query. */
+    function post(path, body, accountId) {
+      const payload = { ...(body ?? {}) }
+      if (typeof accountId === 'string' && accountId !== '') payload.accountId = accountId
       return api(path, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body ?? {}),
+        body: JSON.stringify(payload),
       })
     }
 
@@ -491,19 +594,6 @@ window.__ModuleLoader__.load({
       const scale = match[2] === undefined ? 1 : /[kK]/.test(match[2]) ? 1_000 : 1_000_000
       const parsed = Math.round(Number(match[1]) * scale)
       return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined
-    }
-
-    /**
-     * The credential status chip.
-     *
-     * "Refresh only" is a NORMAL, working state — the host exchanges the refresh
-     * token on the first call — so it must not read as an error.
-     */
-    function credentialLabel(t, config) {
-      if (config.credentialState === 'both') return t('accessValid')
-      if (config.credentialState === 'refresh-only') return t('accessRefreshOnly')
-      if (config.credentialState === 'access-only') return t('accessExpiring')
-      return t('accessMissing')
     }
 
     /** A remote capacity range as a grey placeholder.
@@ -533,14 +623,32 @@ window.__ModuleLoader__.load({
 
 
     /**
-     * Render one platform timestamp in the viewer's LOCAL time zone.
+     * The zone this whole panel states times in.
+     *
+     * WHY A FIXED ZONE RATHER THAN THE BROWSER'S. The plugin's own day boundary
+     * is Asia/Shanghai: the check-in scheduler decides "is today already
+     * credited" from a Shanghai date, and the host reports `checkin.day` as that
+     * date. Formatting the timestamps BESIDE those fields in the browser's zone
+     * produced a panel that contradicted itself — with the browser on UTC+9, the
+     * check-in block read "今日 2026-11-14" next to "最近一次 01:04", while the
+     * host had recorded 00:04 on the 14th. One clock, the one every rule in this
+     * plugin already uses, and a label saying so.
+     */
+    const PANEL_ZONE = 'Asia/Shanghai'
+
+    /**
+     * Render one platform timestamp (a usage-row wall clock) in {@link PANEL_ZONE}.
      *
      * The platform returns Asia/Shanghai wall-clock strings WITHOUT an offset
      * (e.g. "2026-11-12T00:46:33.369183"). `new Date(that)` would parse it as
      * the BROWSER's local time, which is only right on a UTC+8 machine. So the
-     * wall clock is first pinned to +08:00 explicitly, then formatted back out in
-     * the viewer's own zone. Strings that already carry an offset/Z are used
-     * as-is. Anything unparseable is shown verbatim rather than "Invalid Date".
+     * wall clock is first pinned to +08:00 explicitly.
+     *
+     * It used to be formatted back out in the viewer's zone, which was defensible
+     * on its own — but this table sits in the SAME panel as the check-in block,
+     * and that block's dates are Shanghai dates. A viewer on UTC+9 therefore saw
+     * a usage row at 03:37 next to a "今日 2026-11-14" whose day had been decided
+     * in Shanghai. One panel, one clock.
      */
     function localTime(raw) {
       if (typeof raw !== 'string' || raw.trim() === '') return '—'
@@ -556,23 +664,66 @@ window.__ModuleLoader__.load({
         if (Number.isNaN(date.getTime())) return text
       }
       try {
-        return new Intl.DateTimeFormat(undefined, {
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: PANEL_ZONE,
           year: 'numeric', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
         }).format(date)
       } catch {
-        const pad = value => String(value).padStart(2, '0')
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+        return wallClockInPanelZone(date, true)
       }
     }
 
-    /** Format an ISO stamp in local time, or the fallback. */
+    /**
+     * `YYYY-MM-DD HH:mm[:ss]` computed from an explicit +08:00 offset.
+     *
+     * The fallback for a runtime without `Intl` time zones. It deliberately does
+     * NOT read `getHours()`: that answers in the MACHINE's zone, which is the
+     * exact confusion this panel is fixing. Shifting the epoch by eight hours and
+     * reading the UTC fields is clock-free arithmetic.
+     */
+    function wallClockInPanelZone(date, withSeconds) {
+      const padded = value => String(value).padStart(2, '0')
+      const shifted = new Date(date.getTime() + 8 * 60 * 60 * 1000)
+      const day = `${shifted.getUTCFullYear()}-${padded(shifted.getUTCMonth() + 1)}-${padded(shifted.getUTCDate())}`
+      const clock = `${padded(shifted.getUTCHours())}:${padded(shifted.getUTCMinutes())}`
+      return withSeconds ? `${day} ${clock}:${padded(shifted.getUTCSeconds())}` : `${day} ${clock}`
+    }
+
+    /**
+     * Format one absolute instant (ISO string or epoch ms) in {@link PANEL_ZONE}.
+     *
+     * `Intl` is used rather than `Date#getHours` so the result does not depend on
+     * where the browser happens to be. A fallback of `undefined` means "return
+     * the raw input" — the previous behaviour for unparseable values.
+     */
     function stamp(iso, fallback) {
-      if (typeof iso !== 'string' || iso === '') return fallback ?? '—'
-      const date = new Date(iso)
-      if (Number.isNaN(date.getTime())) return iso
-      const pad = value => String(value).padStart(2, '0')
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+      const raw = typeof iso === 'number' ? iso : iso
+      if (raw === null || raw === undefined || raw === '') return fallback ?? '—'
+      const date = raw instanceof Date ? raw : new Date(raw)
+      if (Number.isNaN(date.getTime())) return typeof raw === 'string' ? raw : (fallback ?? '—')
+      try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: PANEL_ZONE,
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', hour12: false,
+        }).formatToParts(date)
+        const get = type => (parts.find(part => part.type === type)?.value ?? '')
+        // `en-CA` yields YYYY-MM-DD for the date parts, and hourCycle issues can
+        // render midnight as "24" — normalise it back to 00.
+        const hour = get('hour') === '24' ? '00' : get('hour')
+        return `${get('year')}-${get('month')}-${get('day')} ${hour}:${get('minute')}`
+      } catch {
+        return wallClockInPanelZone(date, false)
+      }
+    }
+
+    /**
+     * The zone label shown next to a timestamp, so a fixed zone is not a silent
+     * decision: a viewer west of Shanghai must not read these as their own clock.
+     */
+    function stampZoneLabel() {
+      return PANEL_ZONE === 'Asia/Shanghai' ? 'UTC+8' : PANEL_ZONE
     }
 
     /** Number formatting for credits: integers stay integers. */
@@ -594,6 +745,10 @@ window.__ModuleLoader__.load({
       sub: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary)', margin: 0 },
       section: { border: '1px solid var(--dsw-alias-border-l2)', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' },
       sectionTitle: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', fontSize: '13px', fontWeight: 600 },
+      // The whole title is the hit area: a 13px label alone is a small target,
+      // and the arrow needs to look like part of the same control.
+      sectionToggle: { display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', padding: 0, margin: 0, cursor: 'pointer', font: 'inherit', color: 'inherit', textAlign: 'left' },
+      sectionArrow: { fontSize: '10px', color: 'var(--dsw-alias-label-tertiary)', width: '10px', display: 'inline-block' },
       hint: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary)', lineHeight: 1.6 },
       row: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
       label: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary)', flex: '0 0 auto', minWidth: '96px' },
@@ -605,7 +760,40 @@ window.__ModuleLoader__.load({
       inputNarrow: { flex: '0 0 auto', width: '96px', padding: '6px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)' },
       button: { padding: '6px 12px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)', color: 'var(--dsw-alias-label-primary)', cursor: 'pointer' },
       buttonPrimary: { padding: '6px 12px', fontSize: '12px', borderRadius: '6px', border: '1px solid transparent', background: 'var(--dsw-alias-accent-primary, #1F6FEB)', color: '#fff', cursor: 'pointer' },
-      buttonSmall: { padding: '3px 8px', fontSize: '11px', borderRadius: '5px', border: '1px solid var(--dsw-alias-border-l2)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' },
+      // 4px vertical padding + 11px text lands at ~26px: the five action chips on
+      // an account row were 20px tall, which is under the comfortable pointer
+      // target and made "Remove" easy to mis-hit next to "Rename".
+      buttonSmall: { padding: '4px 9px', fontSize: '11px', lineHeight: '16px', borderRadius: '5px', border: '1px solid var(--dsw-alias-border-l2)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer' },
+      // Destructive chip: same box as a small button, error-coloured text. No
+      // filled red — this is the routine state, and only the confirmation step
+      // should feel alarming.
+      buttonDanger: { border: '1px solid var(--dsw-alias-border-l2)', color: 'var(--dsw-alias-state-error-primary)' },
+      link: { color: 'var(--dsw-alias-accent-primary, #1F6FEB)', textDecoration: 'underline', textUnderlineOffset: '2px' },
+      /**
+       * The row that pays for new requests.
+       *
+       * A left rule rather than a filled card: these rows already sit inside a
+       * bordered section, and a second box would read as a nested panel. The
+       * rule plus a faint tint marks the row without competing with the buttons
+       * inside it.
+       *
+       * The section's own rhythm is `borderTop + paddingTop: 10px` and NO bottom
+       * padding, so a rule added to just that box stopped at the buttons and read
+       * as a stray floating tick. The row therefore owns a matching bottom edge
+       * and a little inset on both sides, which is what makes the highlight look
+       * deliberate instead of clipped.
+       */
+      rowCurrent: {
+        borderLeft: '3px solid var(--dsw-alias-accent-primary, #1F6FEB)',
+        background: 'var(--dsw-alias-bg-layer-2)',
+        borderRadius: '0 6px 6px 0',
+        paddingLeft: '9px',
+        paddingRight: '8px',
+        paddingBottom: '8px',
+        // Reach the section's right edge so the tint is a band, not a stub.
+        marginRight: '-4px',
+      },
+      detailsSummary: { cursor: 'pointer', fontSize: '12px', color: 'var(--dsw-alias-label-secondary)' },
       mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
       tableWrap: { overflowX: 'auto', border: '1px solid var(--dsw-alias-border-l2)', borderRadius: '8px' },
       table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px' },
@@ -619,23 +807,75 @@ window.__ModuleLoader__.load({
       error: { fontSize: '12px', color: 'var(--dsw-alias-state-error-primary)', lineHeight: 1.5 },
       kv: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '10px', fontSize: '12px' },
       kvKey: { color: 'var(--dsw-alias-label-tertiary)' },
-      kvVal: { color: 'var(--dsw-alias-label-primary)' },
+      /**
+       * A value beside a label. The SIZE is stated, not inherited.
+       *
+       * It used to carry only a colour, so inside a `Row` it fell back to the
+       * browser's default — visibly larger than the 12px label next to it. Only
+       * some rows masked the problem with an inline `fontSize: '12px'`, which is
+       * why one section showed two different value sizes in the same column.
+       * Typography is owned here, once, so a row never has to patch it.
+       */
+      kvVal: { fontSize: '12px', color: 'var(--dsw-alias-label-primary)' },
+      /** Values that are identifiers — routed through the same size as kvVal. */
+      kvMono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '12px', color: 'var(--dsw-alias-label-primary)' },
+      /** A tier id in the reasoning editor: one step below body, by design. */
+      tierId: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '11px', minWidth: '48px' },
       modelCard: { border: '1px solid var(--dsw-alias-border-l4)', borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px' },
       check: { display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--dsw-alias-label-secondary)' },
     }
 
     function Button(props) {
-      const { primary, small, children, ...rest } = props
-      return h('button', { type: 'button', style: primary ? S.buttonPrimary : small ? S.buttonSmall : S.button, ...rest }, children)
+      const { primary, small, style, disabled, children, ...rest } = props
+      const base = primary ? S.buttonPrimary : small ? S.buttonSmall : S.button
+      // `style` MERGES over the variant instead of replacing it: a caller that
+      // only wants to recolour a chip should not have to restate its padding and
+      // font size.
+      const merged = style === undefined ? base : { ...base, ...style }
+      // A disabled chip that looks identical to an enabled one is the whole bug
+      // report: users click it and conclude the feature is broken.
+      const finalStyle = disabled === true ? { ...merged, opacity: 0.5, cursor: 'not-allowed' } : merged
+      return h('button', { type: 'button', style: finalStyle, disabled, ...rest }, children)
     }
 
     function Section(props) {
+      /**
+       * Collapsible section.
+       *
+       * WHY: the panel had seven sections of equal visual weight and 3.6k px of
+       * height, so the two things a user opens this page for — which account is
+       * paying, and how many credits are left — were buried above and below a
+       * 1.8k px usage table. `defaultOpen` decides what a first visit shows; the
+       * summary line keeps a collapsed section informative instead of blank.
+       *
+       * The header is a real button with `aria-expanded`, and the summary is
+       * rendered as ordinary text so it stays readable when collapsed.
+       */
+      const { collapsible = false, defaultOpen = true, summary = null } = props
+      const [open, setOpen] = React.useState(defaultOpen)
+      const showing = collapsible ? open : true
+      const header = h('div', { key: 'title', style: S.sectionTitle }, [
+        collapsible
+          ? h('button', {
+            key: 'toggle',
+            type: 'button',
+            'aria-expanded': showing,
+            onClick: () => setOpen(value => !value),
+            style: S.sectionToggle,
+          }, [
+            h('span', { key: 'arrow', 'aria-hidden': 'true', style: S.sectionArrow }, showing ? '▾' : '▸'),
+            h('span', { key: 'label' }, props.title),
+          ])
+          : h('span', { key: 'label' }, props.title),
+        props.actions == null ? null : h('span', { key: 'actions', style: S.row }, props.actions),
+      ])
       return h('section', { style: S.section }, [
-        h('div', { key: 'title', style: S.sectionTitle }, [
-          h('span', { key: 'label' }, props.title),
-          props.actions == null ? null : h('span', { key: 'actions', style: S.row }, props.actions),
-        ]),
-        ...(props.children == null ? [] : Array.isArray(props.children) ? props.children : [props.children]),
+        header,
+        // A collapsed section still answers "what is in here" with one line.
+        showing || summary == null ? null : h('div', { key: 'summary', style: S.hint }, summary),
+        ...(showing && props.children != null
+          ? (Array.isArray(props.children) ? props.children : [props.children])
+          : []),
       ])
     }
 
@@ -799,7 +1039,7 @@ window.__ModuleLoader__.load({
             efforts.length === 0
               ? h('div', { key: 'none', style: S.hint }, t('modelReasoningOff'))
               : efforts.map((tier, at) => h('div', { key: `tier-${tier.id}`, style: S.row }, [
-                h('span', { key: 'id', style: { ...S.mono, fontSize: '11px', minWidth: '48px' } }, tier.id),
+                h('span', { key: 'id', style: S.tierId }, tier.id),
                 tier.id === 'off' ? null : h('input', {
                   key: 'v',
                   id: `asp-tier-${row.id}-${tier.id}`,
@@ -990,7 +1230,7 @@ window.__ModuleLoader__.load({
     // -----------------------------------------------------------------------
 
     function UsagePanel(props) {
-      const { t, hasToken } = props
+      const { t, hasToken, accountId } = props
       const [type, setType] = React.useState('usage')
       const [modelType, setModelType] = React.useState('')
       const [modelId, setModelId] = React.useState('')
@@ -1011,12 +1251,12 @@ window.__ModuleLoader__.load({
         if (query.endDate) params.set('end_date', query.endDate)
         setBusy(true)
         setError('')
-        api(`/usage?${params.toString()}`)
+        api(`/usage?${params.toString()}`, undefined, accountId)
           .then(answer => { if (live) setData(answer) })
           .catch(caught => { if (live) { setData(null); setError(caught.message) } })
           .finally(() => { if (live) setBusy(false) })
         return () => { live = false }
-      }, [query, hasToken])
+      }, [query, hasToken, accountId])
 
       const apply = (patch) => setQuery(previous => ({
         type,
@@ -1132,7 +1372,7 @@ window.__ModuleLoader__.load({
      * list, and the copy that drifts is always the one on screen.
      */
     function PricingPanel(props) {
-      const { t, hasToken } = props
+      const { t, hasToken, accountId } = props
       const [data, setData] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
       const [error, setError] = React.useState('')
@@ -1143,10 +1383,10 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setError('')
         try {
-          const answer = await api('/pricing')
+          const answer = await api('/pricing', undefined, accountId)
           setData(answer.data ?? null)
         } catch (caught) { setError(caught.message) } finally { setBusy(false) }
-      }, [])
+      }, [accountId])
 
       if (!hasToken) return h('div', { style: S.hint }, t('pricingNeedToken'))
 
@@ -1214,6 +1454,653 @@ window.__ModuleLoader__.load({
     }
 
     // -----------------------------------------------------------------------
+    // Account pool
+    //
+    // One installation can now hold several AgentScope accounts. Two words that
+    // must never be confused (the plugin glossary keeps them apart):
+    //
+    //   * BILLING account — the one new requests use. Exactly one at a time, and
+    //     the only thing this section ever changes on the wire.
+    //   * VIEWED account — whose data the sections below display. Changing it
+    //     changes nothing about what gets billed.
+    //
+    // There is deliberately NO request-level failover here: a switch redirects
+    // NEW requests only and never interrupts a stream already in flight, and the
+    // copy says so out loud (ADR 0001). The single automatic behaviour is picking
+    // a healthier account by remaining credit, and only between probes.
+    // -----------------------------------------------------------------------
+
+    /**
+     * The status chips for one account row.
+     *
+     * Tones come from the panel's own pill (`S.pill`): 'ok' for the billing
+     * account, 'bad' for the two states that stop an account working at all
+     * (disabled / credentials expired), neutral for the advisory ones.
+     *
+     * `disabledReason` and `probe.outcome` are different questions — "why is this
+     * account excluded" versus "what did the last probe say" — so both are shown
+     * rather than collapsed into one.
+     */
+    function accountBadges(t, account) {
+      const badges = []
+      if (account?.active === true) badges.push({ key: 'current', tone: 'ok', text: safeT(t, 'accountStateCurrent') })
+      if (account?.enabled === false) badges.push({ key: 'disabled', tone: 'bad', text: safeT(t, 'accountStateDisabled') })
+      if (account?.disabledReason === 'expired' || account?.probe?.outcome === 'expired') {
+        badges.push({ key: 'expired', tone: 'bad', text: safeT(t, 'accountStateExpired') })
+      }
+      if (account?.probe?.outcome === 'out-of-credit') badges.push({ key: 'low', tone: undefined, text: safeT(t, 'accountStateLowCredit') })
+      return badges
+    }
+
+    /** A millisecond stamp from an account projection, in the panel's own format. */
+    function accountStamp(t, ms) {
+      return typeof ms === 'number' && ms > 0 ? stamp(new Date(ms).toISOString()) : safeT(t, 'never')
+    }
+
+    /** The label to show for an account: never an empty row. */
+    function accountTitle(t, account) {
+      const label = typeof account?.label === 'string' ? account.label.trim() : ''
+      return label === '' ? safeT(t, 'accountUntitled') : label
+    }
+
+    /**
+     * How the current `sk-as-` key got there: pasted by hand or fetched.
+     *
+     * It matters when a fetch "succeeds" but the platform returned a key the user
+     * did not expect — the badge says which route produced what is on screen.
+     * An unknown source renders nothing rather than a guessed word.
+     */
+    function modelKeySourceLabel(t, source) {
+      if (source === 'pasted') return safeT(t, 'modelKeySourcePasted')
+      if (source === 'fetched') return safeT(t, 'modelKeySourceFetched')
+      return ''
+    }
+
+    /**
+     * Whether a projection describes usable credentials.
+     *
+     * `usable` is authoritative when present. A host that only reports
+     * `credentialState` still answers the same question — "refresh-only" is a
+     * working state, not an error.
+     */
+    function accountHasToken(account) {
+      if (account === null || account === undefined) return false
+      if (typeof account.usable === 'boolean') return account.usable
+      return typeof account.credentialState === 'string' && account.credentialState !== 'missing'
+    }
+
+    /**
+     * The account pool: the billing-account picker, one row per account, the
+     * add form, and the credit-threshold switch.
+     *
+     * Every mutation goes through the panel's `run(label, action)` so busy/error/
+     * notice behave exactly like the rest of the page — there is no second
+     * feedback mechanism here. `onPool` takes a fresh projection from the host;
+     * the host stays the single source of truth for the account list.
+     */
+    function AccountPoolSection(props) {
+      const {
+        t, pool, onPool, run, busy, notify, patchAccount, reloadPool,
+        modelKeyMask = '', modelKeyConfigured = false, modelKeySource = '',
+      } = props
+      const accounts = Array.isArray(pool.accounts) ? pool.accounts : []
+      const activeAccountId = typeof pool.activeAccountId === 'string' ? pool.activeAccountId : ''
+      const autoSwitch = pool.autoSwitch ?? {}
+      // Same breakpoint as the composer pill: on a phone an account row becomes a
+      // single column instead of a row that would overflow the settings panel.
+      const narrow = useNarrowScreen()
+
+      const [adding, setAdding] = React.useState(false)
+      const [label, setLabel] = React.useState('')
+      const [token, setToken] = React.useState('')
+      const [modelKey, setModelKey] = React.useState('')
+      const [activate, setActivate] = React.useState(false)
+      // Two-step delete: the id awaiting confirmation. Nothing is removed until
+      // the SAME row is confirmed, so a mis-click on one row cannot delete another.
+      const [pendingRemove, setPendingRemove] = React.useState('')
+      const [renaming, setRenaming] = React.useState(null)
+      const [threshold, setThreshold] = React.useState(String(autoSwitch.thresholdPct ?? 20))
+      // The one row whose credential fields are open. One at a time: two open
+      // editors for two accounts invite pasting a token into the wrong one.
+      const [editing, setEditing] = React.useState('')
+      const [editToken, setEditToken] = React.useState('')
+      const [editInterval, setEditInterval] = React.useState('')
+      const [editModelKey, setEditModelKey] = React.useState('')
+
+      // The host is the authority on the threshold; a fresh projection re-seeds
+      // the box (it is an input, so only an outside change may overwrite it).
+      React.useEffect(() => { setThreshold(String(autoSwitch.thresholdPct ?? 20)) }, [autoSwitch.thresholdPct])
+
+      const switchTo = accountId => run('account-switch', async () => {
+        const answer = await post('/accounts/switch', { accountId })
+        onPool(answer)
+      })
+
+      /**
+       * Probe one account.
+       *
+       * `/accounts/test` answers with the PROBE, not with the pool projection
+       * (`{ probe, credentialState, credits }`), so the row is patched in place
+       * and the list is re-read: a probe can flip `disabledReason` to `expired`
+       * on the host, and guessing that transition here would be a second copy of
+       * a rule the host owns.
+       */
+      const testAccount = accountId => run('account-test', async () => {
+        let answer
+        try {
+          answer = await post('/accounts/test', { accountId })
+        } catch (caught) {
+          throw new Error(`${safeT(t, 'accountTestFailed')}: ${caught.message}`)
+        }
+        patchAccount(accountId, {
+          probe: answer?.probe ?? null,
+          ...(answer?.credentialState === undefined ? {} : { credentialState: answer.credentialState }),
+          ...(answer?.credits === undefined ? {} : { credits: answer.credits }),
+        })
+        notify(safeT(t, 'accountTestOk'))
+        await reloadPool()
+      })
+
+      const setEnabled = (account, enabled) => run('account-enable', async () => {
+        // Advisory guard, mirrored from the host's own rule: the panel says why
+        // before the request goes out, and the host still has the final word.
+        if (enabled === false && accounts.filter(row => row.enabled !== false).length <= 1) {
+          throw new Error(safeT(t, 'accountCannotDisableLast'))
+        }
+        const answer = await post('/accounts/enable', { accountId: account.id, enabled })
+        onPool(answer)
+      })
+
+      const renameAccount = () => run('account-rename', async () => {
+        const next = renaming ?? {}
+        const name = String(next.label ?? '').trim()
+        if (name === '') throw new Error(safeT(t, 'accountNeedLabel'))
+        const answer = await post('/accounts/rename', { accountId: next.id, label: name })
+        onPool(answer)
+        setRenaming(null)
+      })
+
+      const removeAccount = accountId => run('account-remove', async () => {
+        const answer = await post('/accounts/remove', { accountId })
+        onPool(answer)
+        setPendingRemove('')
+      })
+
+      // ---------------------------------------------------------------------
+      // One account's credentials, edited in place
+      //
+      // These used to be a separate "Credentials and model key" section, which
+      // edited whichever account the VIEWED-account picker pointed at — two
+      // controls for one file, and two ways for them to disagree. Each action
+      // now takes the row's own id, so the account you can see is the account
+      // you are changing.
+      // ---------------------------------------------------------------------
+
+      const saveToken = account => run('account-token', async () => {
+        const draft = editToken.trim()
+        if (draft === '') throw new Error(safeT(t, 'accountNeedToken'))
+        const body = { refreshToken: draft }
+        if (String(editInterval).trim() !== '') body.intervalMin = intervalMinutes()
+        const answer = await post('/config', body, account.id)
+        setEditToken('')
+        patchAccount(account.id, {
+          ...(answer?.credentialState === undefined ? {} : { credentialState: answer.credentialState }),
+          usable: answer?.usable === true || account.usable === true,
+        })
+        // A pasted refresh token is exchanged immediately, so a refusal is worth
+        // saying out loud: the box is now empty and the stored pair is unchanged.
+        if (answer?.exchanged !== undefined && answer.exchanged !== null && answer.exchanged.ok !== true) {
+          throw new Error(`${safeT(t, 'refreshFailed')}: ${answer.exchanged.error ?? ''}`)
+        }
+        notify(safeT(t, answer?.exchanged?.ok === true ? 'phoneExchanged' : 'ok'))
+        await reloadPool()
+      })
+
+      const fetchKey = account => run('account-key-fetch', async () => {
+        const answer = await post('/model-key/fetch', {}, account.id)
+        patchAccount(account.id, { credentialState: answer?.configured === true ? account.credentialState : account.credentialState })
+        if (answer?.configured !== true) throw new Error(safeT(t, 'modelKeyNotReturned'))
+        notify(safeT(t, 'modelKeyFetched'))
+      })
+
+      const resetKey = account => run('account-key-reset', async () => {
+        const answer = await post('/model-key/reset', {}, account.id)
+        notify(safeT(t, answer?.rotated === true ? 'modelKeyFetched' : 'modelKeyNotReturned'))
+      })
+
+      const saveKey = account => run('account-key', async () => {
+        const draft = editModelKey.trim()
+        if (draft === '') throw new Error(safeT(t, 'modelKeyMissing'))
+        await post('/model-key', { key: draft }, account.id)
+        setEditModelKey('')
+        notify(safeT(t, 'ok'))
+      })
+
+      const addAccount = () => run('account-add', async () => {
+        const name = label.trim()
+        const refresh = token.trim()
+        if (name === '') throw new Error(safeT(t, 'accountNeedLabel'))
+        if (refresh === '') throw new Error(safeT(t, 'accountNeedToken'))
+        const body = { label: name, refreshToken: refresh, activate }
+        // An empty key means "let the host fetch one": sending "" would look like
+        // a deliberate clear.
+        if (modelKey.trim() !== '') body.modelKey = modelKey.trim()
+        const answer = await post('/accounts', body)
+        onPool(answer)
+        setLabel(''); setToken(''); setModelKey(''); setActivate(false); setAdding(false)
+        // The host verifies the token BEFORE the account appears in the list, so a
+        // rejected token is reported the same way /config reports it.
+        if (answer?.exchanged !== undefined && answer.exchanged !== null && answer.exchanged.ok !== true) {
+          throw new Error(`${safeT(t, 'refreshFailed')}: ${answer.exchanged.error ?? ''}`)
+        }
+        notify(safeT(t, answer?.exchanged?.ok === true ? 'phoneExchanged' : 'ok'))
+      })
+
+      /** The polling interval in minutes, clamped to the range the host accepts. */
+      const intervalMinutes = () => {
+        const value = Number(editInterval)
+        if (!Number.isFinite(value) || value <= 0) return 30
+        return Math.min(1440, Math.max(5, Math.round(value)))
+      }
+
+      /**
+       * The threshold as a percentage.
+       *
+       * `Number(x) || 20` would turn a deliberate 0 ("always take the healthiest
+       * account") into 20, so only an unparseable or out-of-range box falls back.
+       */
+      const thresholdPct = () => {
+        const value = Number(threshold)
+        if (!Number.isFinite(value)) return 20
+        return Math.min(100, Math.max(0, Math.round(value)))
+      }
+
+      // Immediate effect, like every other switch on this page: no draft, no save.
+      const applyAutoSwitch = enabled => run('account-auto', async () => {
+        const answer = await post('/accounts/auto-switch', { enabled, thresholdPct: thresholdPct() })
+        onPool(answer)
+      })
+
+      const applyThreshold = () => run('account-auto', async () => {
+        const answer = await post('/accounts/auto-switch', { enabled: autoSwitch.enabled === true, thresholdPct: thresholdPct() })
+        onPool(answer)
+      })
+
+      const rowStyle = {
+        display: 'flex',
+        flexDirection: narrow ? 'column' : 'row',
+        alignItems: narrow ? 'stretch' : 'center',
+        gap: '8px',
+        flexWrap: 'wrap',
+        borderTop: '1px solid var(--dsw-alias-border-l4)',
+        paddingTop: '10px',
+      }
+      const actionsStyle = { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }
+
+      const header = [
+        h('span', { key: 'k', style: S.kvKey }, safeT(t, 'accountCurrent')),
+        accounts.length === 0
+          ? null
+          : h('select', {
+            key: 's',
+            id: 'asp-account-switch',
+            style: { ...S.input, flex: '0 0 auto', width: narrow ? '100%' : '220px' },
+            value: activeAccountId,
+            disabled: busy !== '',
+            onChange: event => { void switchTo(event.target.value) },
+          }, accounts.map(row => h('option', { key: row.id, value: row.id }, accountTitle(t, row)))),
+        h(Button, { key: 'a', id: 'asp-account-add', small: true, onClick: () => setAdding(value => !value), disabled: busy !== '' }, safeT(t, 'accountAdd')),
+      ]
+
+      return h(Section, {
+        key: 'accounts',
+        title: safeT(t, 'sectionAccounts'),
+        // This badge used to repeat the CURRENT account's name, which the picker
+        // right below already shows and the highlighted row already marks. Three
+        // statements of one fact, and none of them the question a visitor has:
+        // how many accounts are there? The count answers that, and the picker
+        // keeps owning "which one".
+        actions: [h('span', { key: 'p', style: S.pill(accounts.length === 0 ? undefined : 'ok') },
+          accounts.length === 0 ? safeT(t, 'accountNoneYet') : safeFill(t, 'accountCount', { count: accounts.length }))],
+        children: [
+          // The two explanations here were the first thing on the page and the
+          // least needed on a second visit: they described concepts the controls
+          // already show. They are now one quiet hint under the picker instead of
+          // a paragraph above it, so the account rows start near the top.
+          h('div', { key: 'head', style: S.row }, header),
+          h('div', { key: 'switchHint', style: S.hint }, safeT(t, 'accountSwitchHint')),
+
+          adding ? h('div', { key: 'add', style: { ...S.modelCard, gap: '8px' } }, [
+            h(Row, { key: 'label', label: safeT(t, 'accountLabel') }, h('input', {
+              key: 'i',
+              id: 'asp-account-new-label',
+              autoComplete: 'off',
+              style: S.input,
+              value: label,
+              placeholder: safeT(t, 'accountUntitled'),
+              onChange: event => setLabel(event.target.value),
+            })),
+            h(Row, { key: 'token', label: safeT(t, 'refreshToken') }, h('input', {
+              key: 'i',
+              id: 'asp-account-new-token',
+              name: 'asp-account-new-token',
+              'data-lpignore': 'true',
+              // "new-password", never "off": Chrome autofills password fields
+              // regardless of off (same reason as the credentials field below).
+              autoComplete: 'new-password',
+              style: S.input,
+              type: 'password',
+              value: token,
+              onChange: event => setToken(event.target.value),
+            })),
+            // Reuses the credentials section's instructions: the platform's
+            // console is the only place a refresh token comes from.
+            h('div', { key: 'howto', style: S.hint }, [
+              h('div', { key: 'p' }, safeT(t, 'refreshTokenHowTo')),
+              h('code', {
+                key: 'c',
+                style: { ...S.mono, display: 'block', marginTop: '4px', padding: '5px 7px', borderRadius: '5px', background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid var(--dsw-alias-border-l2)', userSelect: 'all', wordBreak: 'break-all' },
+              }, safeT(t, 'refreshTokenSnippet')),
+            ]),
+            h(Row, { key: 'key', label: safeT(t, 'accountModelKey') }, h('input', {
+              key: 'i',
+              id: 'asp-account-new-key',
+              name: 'asp-account-new-key',
+              'data-lpignore': 'true',
+              autoComplete: 'new-password',
+              style: S.input,
+              type: 'password',
+              value: modelKey,
+              placeholder: 'sk-as-…',
+              onChange: event => setModelKey(event.target.value),
+            })),
+            h(Row, { key: 'activate' }, h('label', { style: S.check }, [
+              h('input', {
+                id: 'asp-account-new-activate',
+                type: 'checkbox',
+                checked: activate,
+                disabled: busy !== '',
+                onChange: event => setActivate(event.target.checked),
+              }),
+              safeT(t, 'accountActivate'),
+            ])),
+            h('div', { key: 'go', style: S.row }, [
+              h(Button, { key: 'save', id: 'asp-account-new-save', primary: true, onClick: addAccount, disabled: busy !== '' }, busy === 'account-add' ? safeT(t, 'accountSaving') : safeT(t, 'accountAdd')),
+              h(Button, { key: 'cancel', id: 'asp-account-new-cancel', onClick: () => setAdding(false), disabled: busy !== '' }, safeT(t, 'cancel')),
+            ]),
+          ]) : null,
+
+          accounts.length === 0
+            ? h('div', { key: 'empty', style: S.hint }, safeT(t, 'accountEmpty'))
+            : accounts.map(account => {
+              const title = accountTitle(t, account)
+              const renamingThis = renaming !== null && renaming.id === account.id
+              // WHICH account pays is the one thing this list exists to answer,
+              // and every row was drawn identically: the only cue was a small
+              // "Current" pill you had to read. The paying row now carries a
+              // left rule and a tint, so it is legible before any text is read.
+              const isCurrent = account.active === true
+              return h('div', {
+                key: account.id,
+                style: isCurrent ? { ...rowStyle, ...S.rowCurrent } : rowStyle,
+              }, [
+                h('div', { key: 'id', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: '1 1 200px', minWidth: 0 } }, [
+                  h('span', { key: 'n', style: { ...S.kvVal, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' } }, title),
+                  ...accountBadges(t, account).map(badge => h('span', { key: badge.key, style: S.pill(badge.tone) }, badge.text)),
+                ]),
+                h('div', { key: 'meta', style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px' } }, [
+                  h('span', { key: 'c', style: S.kvKey },
+                    `${safeT(t, 'accountCredits')} ${credit(account.credits)}`),
+                  h('span', { key: 'r', style: S.kvKey },
+                    `${safeT(t, 'accountLastRefreshed')} ${accountStamp(t, account.lastRefreshedAt)} ${stampZoneLabel()}`),
+                ]),
+                h('div', { key: 'acts', style: actionsStyle }, [
+                  // "Make current" only appears where it can do something.
+                  account.active === true || account.enabled === false ? null : h(Button, {
+                    key: 'cur',
+                    id: `asp-account-current-${account.id}`,
+                    small: true,
+                    onClick: () => { void switchTo(account.id) },
+                    disabled: busy !== '',
+                  }, safeT(t, 'accountSetCurrent')),
+                  h(Button, {
+                    key: 'test',
+                    id: `asp-account-test-${account.id}`,
+                    small: true,
+                    onClick: () => { void testAccount(account.id) },
+                    disabled: busy !== '',
+                  }, busy === 'account-test' ? safeT(t, 'loading') : safeT(t, 'accountTest')),
+                  h(Button, {
+                    key: 'en',
+                    id: `asp-account-enable-${account.id}`,
+                    small: true,
+                    onClick: () => { void setEnabled(account, account.enabled === false) },
+                    disabled: busy !== '',
+                  }, account.enabled === false ? safeT(t, 'accountEnable') : safeT(t, 'accountDisable')),
+                  h(Button, {
+                    key: 'ed',
+                    id: `asp-account-edit-${account.id}`,
+                    small: true,
+                    onClick: () => {
+                      setEditing(editing === account.id ? '' : account.id)
+                      setEditToken(''); setEditInterval(''); setEditModelKey('')
+                    },
+                    disabled: busy !== '',
+                  }, safeT(t, 'accountEdit')),
+                  h(Button, {
+                    key: 'rn',
+                    id: `asp-account-rename-${account.id}`,
+                    small: true,
+                    onClick: () => setRenaming(renamingThis ? null : { id: account.id, label: title }),
+                    disabled: busy !== '',
+                  }, safeT(t, 'accountRename')),
+                  // The destructive pair is pushed to the opposite end, away from
+                  // the routine buttons: five same-weight chips in a row made
+                  // "Remove" sit one slip away from "Probe".
+                  h('span', { key: 'gap', 'aria-hidden': 'true', style: { flex: '1 1 auto' } }),
+                  pendingRemove === account.id
+                    ? h(Button, {
+                      key: 'rm',
+                      id: `asp-account-remove-${account.id}`,
+                      small: true,
+                      onClick: () => { void removeAccount(account.id) },
+                      disabled: busy !== '',
+                      title: safeT(t, 'accountRemoveConfirm'),
+                      style: S.buttonDanger,
+                    }, `${safeT(t, 'accountRemoveConfirm')} ${safeT(t, 'ok')}`)
+                    : h(Button, {
+                      key: 'rm',
+                      id: `asp-account-remove-${account.id}`,
+                      small: true,
+                      onClick: () => setPendingRemove(account.id),
+                      disabled: busy !== '',
+                      style: S.buttonDanger,
+                    }, safeT(t, 'accountRemove')),
+                  pendingRemove === account.id
+                    ? h(Button, { key: 'no', small: true, onClick: () => setPendingRemove(''), disabled: busy !== '' }, safeT(t, 'cancel'))
+                    : null,
+                ]),
+                renamingThis
+                  ? h('div', { key: 'ren', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flexBasis: '100%' } }, [
+                    h('input', {
+                      key: 'i',
+                      id: `asp-account-rename-input-${account.id}`,
+                      autoComplete: 'off',
+                      style: S.input,
+                      value: renaming.label,
+                      onChange: event => setRenaming({ id: account.id, label: event.target.value }),
+                    }),
+                    h(Button, { key: 's', id: `asp-account-rename-save-${account.id}`, small: true, onClick: renameAccount, disabled: busy !== '' }, safeT(t, 'save')),
+                    h(Button, { key: 'c', id: `asp-account-rename-cancel-${account.id}`, small: true, onClick: () => setRenaming(null), disabled: busy !== '' }, safeT(t, 'cancel')),
+                  ])
+                  : null,
+                editing === account.id
+                  ? h('div', { key: 'edit', style: { ...S.modelCard, gap: '8px', flexBasis: '100%' } }, [
+                    h('div', { key: 'h', style: S.hint }, safeT(t, 'accountEditHint')),
+                    // Login credential. The platform hands out a refresh token in
+                    // its own console; the line below is the only reliable way to
+                    // read it (verified against the shipped console bundle).
+                    h(Row, { key: 'tk', label: safeT(t, 'refreshToken') }, h('input', {
+                      key: 'i',
+                      id: `asp-account-token-${account.id}`,
+                      name: `asp-account-token-${account.id}`,
+                      'data-lpignore': 'true',
+                      // "new-password", never "off": Chrome autofills password
+                      // inputs regardless of off and would paste a saved login.
+                      autoComplete: 'new-password',
+                      style: S.input,
+                      type: 'password',
+                      value: editToken,
+                      placeholder: safeT(t, 'accountTokenPlaceholder'),
+                      onChange: event => setEditToken(event.target.value),
+                    })),
+                    h('div', { key: 'tksave', style: S.row }, h(Button, {
+                      key: 'b',
+                      id: `asp-account-token-save-${account.id}`,
+                      small: true,
+                      onClick: () => { void saveToken(account) },
+                      disabled: busy !== '' || editToken.trim() === '',
+                      title: editToken.trim() === '' ? safeT(t, 'tokenPasteFirst') : safeT(t, 'save'),
+                    }, busy === 'account-token' ? safeT(t, 'saving') : safeT(t, 'save'))),
+                    h(Row, { key: 'iv', label: safeT(t, 'pullInterval') }, h('input', {
+                      key: 'i',
+                      id: `asp-account-interval-${account.id}`,
+                      style: S.inputNarrow,
+                      type: 'number',
+                      min: 5,
+                      max: 1440,
+                      value: editInterval,
+                      placeholder: '30',
+                      onChange: event => setEditInterval(event.target.value),
+                    })),
+                    // The console recipe is a one-time read, not an instruction to
+                    // re-read on every visit. It sat ABOVE the save chip and pushed
+                    // the actual controls down the panel.
+                    h('details', { key: 'howto' }, [
+                      h('summary', { key: 's', style: S.detailsSummary }, safeT(t, 'tokenHowToToggle')),
+                      h('div', { key: 'body', style: S.hint }, [
+                        h('div', { key: 'p' }, safeT(t, 'refreshTokenHowTo')),
+                        h('code', {
+                          key: 'c',
+                          style: { ...S.mono, display: 'block', marginTop: '4px', padding: '5px 7px', borderRadius: '5px', background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid var(--dsw-alias-border-l2)', userSelect: 'all', wordBreak: 'break-all' },
+                        }, safeT(t, 'refreshTokenSnippet')),
+                      ]),
+                    ]),
+                    // Model key: a SEPARATE credential from the login token, and
+                    // the one model calls actually use.
+                    h('div', { key: 'mk', style: { borderTop: '1px solid var(--dsw-alias-border-l4)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' } }, [
+                      h('div', { key: 'h', style: S.hint }, safeT(t, 'modelKeyHint')),
+                      // Two ways to fill ONE field, stated as such. The buttons
+                      // used to sit above the input with a "paste a key" label
+                      // underneath, which read like a required sequence rather
+                      // than a choice.
+                      h('div', { key: 'src', style: { ...S.hint, fontWeight: 600 } }, safeT(t, 'modelKeyEither')),
+                      // WHICH key is in place. The host already answers with a
+                      // head-and-tail mask; showing it turns the edit panel from
+                      // a blank password box into "this is the key you have, and
+                      // it is not the one you just pasted".
+                      h('div', { key: 'now', style: { ...S.kv, justifyContent: 'flex-start', gap: '8px' } }, [
+                        h('span', { key: 'k', style: S.kvKey }, safeT(t, 'modelKeyCurrent')),
+                        modelKeyConfigured
+                          ? h('span', { key: 'v', style: S.kvMono }, modelKeyMask)
+                          : h('span', { key: 'v', style: S.kvKey }, safeT(t, 'modelKeyMissing')),
+                        modelKeyConfigured && modelKeySource !== ''
+                          ? h('span', { key: 's', style: S.pill('ok') }, modelKeySourceLabel(t, modelKeySource))
+                          : null,
+                      ]),
+                      h('div', { key: 'acts', style: actionsStyle }, [
+                        h(Button, {
+                          key: 'f',
+                          id: `asp-account-key-fetch-${account.id}`,
+                          small: true,
+                          onClick: () => { void fetchKey(account) },
+                          disabled: busy !== '',
+                          title: safeT(t, 'modelKeyFetchHint'),
+                        }, busy === 'account-key-fetch' ? safeT(t, 'loading') : safeT(t, 'modelKeyFetch')),
+                        h(Button, {
+                          key: 'r',
+                          id: `asp-account-key-reset-${account.id}`,
+                          small: true,
+                          onClick: () => { void resetKey(account) },
+                          disabled: busy !== '',
+                          title: safeT(t, 'modelKeyResetWarn'),
+                        }, safeT(t, 'modelKeyReset')),
+                      ]),
+                      // Why not every account has one: the platform shows a full
+                      // key only at generate/reset time, so "fetch" can legitimately
+                      // come back empty. Saying so here prevents that being read as
+                      // another broken button.
+                      h('div', { key: 'fetchNote', style: S.hint }, safeT(t, 'modelKeyFetchNote')),
+                      h(Row, { key: 'paste', label: safeT(t, 'modelKeyPaste') }, [
+                        h('input', {
+                          key: 'i',
+                          id: `asp-account-key-${account.id}`,
+                          name: `asp-account-key-${account.id}`,
+                          'data-lpignore': 'true',
+                          autoComplete: 'new-password',
+                          style: S.input,
+                          type: 'password',
+                          value: editModelKey,
+                          placeholder: 'sk-as-…',
+                          onChange: event => setEditModelKey(event.target.value),
+                        }),
+                        h(Button, {
+                          key: 'b',
+                          id: `asp-account-key-save-${account.id}`,
+                          small: true,
+                          onClick: () => { void saveKey(account) },
+                          disabled: busy !== '' || editModelKey.trim() === '',
+                          // A DISABLED button with no explanation reads as "this
+                          // does nothing" — which is exactly how it was reported.
+                          title: editModelKey.trim() === '' ? safeT(t, 'modelKeyPasteFirst') : safeT(t, 'save'),
+                        }, safeT(t, 'save')),
+                      ]),
+                      // The reason the save chip is inert, stated in place rather
+                      // than behind a tooltip hover nobody performs.
+                      editing === account.id && editModelKey.trim() === ''
+                        ? h('div', { key: 'saveHint', style: S.hint }, safeT(t, 'modelKeyPasteFirst'))
+                        : null,
+                    ]),
+                  ])
+                  : null,
+              ])
+            }),
+
+          h('div', { key: 'auto', style: { ...rowStyle, paddingTop: '12px' } }, [
+            h('label', { key: 'sw', style: S.check }, [
+              h('input', {
+                id: 'asp-account-auto-switch',
+                type: 'checkbox',
+                checked: autoSwitch.enabled === true,
+                disabled: busy !== '' || accounts.length === 0,
+                onChange: event => { void applyAutoSwitch(event.target.checked) },
+              }),
+              safeT(t, 'accountAutoSwitch'),
+            ]),
+            h('label', { key: 'th', style: S.check }, [
+              safeT(t, 'accountThreshold'),
+              h('input', {
+                id: 'asp-account-threshold',
+                style: { ...S.input, flex: '0 0 auto', width: '80px' },
+                type: 'number',
+                min: 0,
+                max: 100,
+                value: threshold,
+                disabled: busy !== '' || accounts.length === 0,
+                onChange: event => setThreshold(event.target.value),
+                onBlur: applyThreshold,
+              }),
+              '%',
+            ]),
+          ]),
+          // The one sentence the ADR requires to be visible: this is NOT automatic
+          // failover, and it never touches a request already on the wire.
+          h('div', { key: 'autoHint', style: S.hint }, safeT(t, 'accountAutoSwitchHint')),
+        ],
+      })
+    }
+
+    // -----------------------------------------------------------------------
     // Settings page
     // -----------------------------------------------------------------------
 
@@ -1226,22 +2113,30 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState('')
       const [notice, setNotice] = React.useState('')
 
-      // Credential drafts: empty means "keep what is stored".
-      const [refreshToken, setRefreshToken] = React.useState('')
-      const [intervalMin, setIntervalMin] = React.useState('30')
-      const [modelKeyDraft, setModelKeyDraft] = React.useState('')
-
       const load = React.useCallback(async () => {
         try {
           const answer = await api('/state')
           setState(answer)
-          setIntervalMin(String(answer.credits?.config?.intervalMin ?? 30))
           setError('')
         } catch (caught) { setError(caught.message) }
       }, [])
-
       React.useEffect(() => { void load() }, [load])
       React.useEffect(() => { void creditsStore.refresh() }, [])
+
+      /**
+       * Re-read the aggregate state whenever the SHARED credits document moves.
+       *
+       * `/quick` now records its reading as that account's probe, so the pill's
+       * refresh IS a new measurement — but the account rows come from `/state`,
+       * which this panel only fetched on mount. The two then showed different
+       * balances for one account until the panel was reopened. Keyed on the
+       * document's timestamp so a re-render that changes nothing costs no read.
+       */
+      const creditsAt = sharedCredits.at
+      React.useEffect(() => {
+        if (creditsAt === 0) return
+        void load()
+      }, [creditsAt, load])
 
       const run = async (label, action) => {
         setBusy(label)
@@ -1250,66 +2145,103 @@ window.__ModuleLoader__.load({
         try { await action() } catch (caught) { setError(caught.message) } finally { setBusy('') }
       }
 
+      /**
+       * The pool the panel renders.
+       *
+       * There is ONE account in play: the billed-to one. Every per-account
+       * section below reads it, and every per-account request omits the id so
+       * the host resolves the same account itself — one notion of "the current
+       * account" instead of two that can disagree.
+       */
+      const accounts = Array.isArray(state?.accounts) ? state.accounts : []
+      const activeAccountId = typeof state?.activeAccountId === 'string' ? state.activeAccountId : ''
+      const billingAccount = accounts.find(row => row.id === activeAccountId) ?? null
+
       if (state === null) {
         return h('div', { style: S.hint }, error === '' ? t('loading') : error)
       }
 
-      const config = state.credits?.config ?? {}
-      // ONE source: the shared /quick document, not the /fetch snapshot.
       const credits = sharedCredits.credits ?? {}
+      const creditsError = sharedCredits.error
       const user = state.credits?.latest?.user ?? {}
       const promo = credits.active_promotion ?? null
       const catalog = Array.isArray(state.catalog) ? state.catalog : []
       // A refresh token alone is enough: the host exchanges it on the first call.
-      const hasToken = config.usable === true || config.hasAccessToken === true || config.hasRefreshToken === true
-      // The platform hands out a fresh pair on every exchange; a null stamp means
-      // the refresh token has never been used here yet.
-      const lastRefreshed = typeof config.refreshedAt === 'number' && config.refreshedAt > 0
-        ? localTime(new Date(config.refreshedAt).toISOString())
-        : t('neverRefreshed')
+      const hasToken = accountHasToken(billingAccount)
+      // GLOBAL by definition: the catalog and its metadata are shared by every
+      // account, so they always come from the billing document. The check-in and
+      // the model key are per-account and follow the viewed one.
       const checkin = state.checkin ?? {}
+      const modelKeyView = state.modelKey ?? {}
       const meta = state.meta ?? {}
 
-      const saveCredentials = () => run('credentials', async () => {
-        const body = { intervalMin: Number(intervalMin) || 30, autoRefresh: true }
-        // Only send a token when the user typed one: an empty draft means
-        // "unchanged", and sending "" would clear a working credential.
-        if (refreshToken.trim() !== '') body.refreshToken = refreshToken.trim()
-        const answer = await post('/config', body)
-        setRefreshToken('')
-        setState(previous => previous === null ? previous : { ...previous, credits: { ...previous.credits, ...answer } })
-        // A pasted refresh token is exchanged immediately (the host does it on
-        // save), so the browser's own session is expected to be invalidated. Say
-        // which happened instead of a bare "saved".
-        if (answer.exchanged !== undefined && answer.exchanged !== null) {
-          if (answer.exchanged.ok === true) setNotice(t('phoneExchanged'))
-          else setError(`${t('refreshFailed')}: ${answer.exchanged.error ?? ''}`)
-        } else {
-          setNotice(t('ok'))
+      /**
+       * Fold an account-pool answer back into the shared page state.
+       *
+       * The pool endpoints answer with the same projection `GET /accounts` does,
+       * so the list, the billing id and the auto-switch preference are taken from
+       * it verbatim — the host is the authority, this page only mirrors it.
+       */
+      const applyPool = answer => {
+        if (answer === null || answer === undefined) return
+        /**
+         * Switching the billed-to account invalidates every reading on screen.
+         *
+         * The pill, the credits section and the check-in all describe the
+         * BILLING account, so after a switch they must re-read or they keep
+         * showing the previous account's balance under the new one's name.
+         * Forced (not the fresh-skip path): the store's cache belongs to the
+         * account it was read from, and this is a different account.
+         *
+         * Done HERE rather than inside the state updater: an updater must stay
+         * pure (React may run it more than once), so the comparison reads the
+         * current state first and the fetch is fired outside.
+         */
+        const switching = typeof answer.activeAccountId === 'string'
+          && state !== null && answer.activeAccountId !== state.activeAccountId
+        setState(previous => previous === null ? previous : {
+          ...previous,
+          ...(Array.isArray(answer.accounts) ? { accounts: answer.accounts } : {}),
+          ...(typeof answer.activeAccountId === 'string' ? { activeAccountId: answer.activeAccountId } : {}),
+          ...(answer.autoSwitch === undefined ? {} : { pool: { ...(previous.pool ?? {}), autoSwitch: answer.autoSwitch } }),
+        })
+        if (switching) {
+          // `load()` directly as well: the check-in block lives on `/state` and
+          // does NOT ride the pool projection, and the credits effect is keyed on
+          // a timestamp — two refreshes landing in one millisecond would leave it
+          // showing the previous account's record.
+          void load()
+          void creditsStore.refresh(true)
         }
-        await load()
-      })
+        }
 
-      const saveModelKey = () => run('modelKey', async () => {
-        const answer = await post('/model-key', { key: modelKeyDraft.trim() })
-        setModelKeyDraft('')
-        setState(previous => previous === null ? previous : { ...previous, modelKey: answer })
-        setNotice(t('ok'))
-      })
+      /**
+       * Patch ONE row of the account list in place.
+       *
+       * The pool endpoints that answer with a full projection go through
+       * `applyPool`; a few (the probe) answer with just that account's result, and
+       * replacing the whole list with it would empty the section.
+       */
+      const patchAccount = (accountId, patch) => {
+        setState(previous => previous === null || !Array.isArray(previous.accounts) ? previous : {
+          ...previous,
+          accounts: previous.accounts.map(row => row.id === accountId ? { ...row, ...patch } : row),
+        })
+      }
 
-      const fetchModelKey = () => run('modelKeyFetch', async () => {
-        const answer = await post('/model-key/fetch', {})
-        setState(previous => previous === null ? previous : { ...previous, modelKey: answer })
-        if (answer.configured !== true) setError(t('modelKeyNotReturned'))
-        else setNotice(t('modelKeyFetched'))
-      })
+      /** Re-read the account list alone: a probe can change state the answer omits. */
+      const reloadPool = async () => {
+        const answer = await api('/accounts')
+        if (Array.isArray(answer?.accounts)) applyPool(answer)
+      }
 
-      const resetModelKey = () => run('modelKeyReset', async () => {
-        const answer = await post('/model-key/reset', {})
-        setState(previous => previous === null ? previous : { ...previous, modelKey: answer })
-        setNotice(answer.rotated ? t('modelKeyFetched') : t('modelKeyNotReturned'))
-      })
+      /** Fold a per-account answer back into the single state document. */
+      const setDoc = patch => {
+        setState(previous => previous === null ? previous : { ...previous, ...patch })
+      }
 
+      // GLOBAL: the provider switch, the catalog and the metadata are one
+      // installation-wide setting, so they never name an account.
       const toggleProvider = () => run('provider', async () => {
         const answer = await post('/provider/toggle', { enabled: state.provider?.enabled !== true })
         setState(answer)
@@ -1318,17 +2250,19 @@ window.__ModuleLoader__.load({
 
       const toggleCheckin = () => run('checkin', async () => {
         const answer = await post('/config/checkin', { enabled: checkin.enabled !== true })
-        setState(previous => previous === null ? previous : { ...previous, checkin: answer })
+        setDoc({ checkin: answer })
       })
 
       const runCheckin = () => run('checkinRun', async () => {
         const answer = await post('/checkin/run', {})
-        setState(previous => previous === null ? previous : { ...previous, checkin: answer.view ?? answer })
+        setDoc({ checkin: answer.view ?? answer })
       })
 
       const fetchCredits = () => run('credits', async () => {
-        // Same endpoint the pill uses. A click here refreshes BOTH surfaces.
+        // ONE document, one account: this refreshes the shared store the composer
+        // pill reads, so the number here and the number there can never disagree.
         await creditsStore.refresh(true)
+        await load()
       })
 
       const refreshMeta = () => run('meta', async () => {
@@ -1365,94 +2299,66 @@ window.__ModuleLoader__.load({
         focusAnchor,
         h('div', { key: 'head', style: S.head }, [
           h('h1', { key: 'h', style: S.h1 }, t('title')),
-          h('p', { key: 's', style: S.sub }, `${t('subtitle')} · ${t('build')} ${state.build ?? '—'}`),
+          // WHAT this page is, before the build stamp. A settings section that
+          // opens on seven control groups with no sentence of context makes the
+          // reader work out the point from the controls.
+          h('p', { key: 'lead', style: S.sub }, t('pageLead')),
+          h('p', { key: 's', style: S.sub }, [
+            h('span', { key: 'meta' }, `${t('subtitle')} · ${t('build')} ${state.build ?? '—'} · `),
+            // The platform this plugin talks to, where the account itself lives.
+            // Opens in a new tab so a half-configured settings panel is not lost.
+            h('a', {
+              key: 'link',
+              href: PLATFORM_URL,
+              target: '_blank',
+              rel: 'noreferrer noopener',
+              style: S.link,
+            }, safeT(t, 'platformLink')),
+          ]),
         ]),
 
-        // ---- credentials ----
-        h(Section, {
-          key: 'cred',
-          title: t('sectionCredentials'),
-          children: [
-            h('div', { key: 'hint', style: S.hint }, t('credHint')),
-            h('div', { key: 'roHint', style: S.hint }, t('refreshOnlyHint')),
-            h(Row, { key: 'rt', label: t('refreshToken') }, h('input', {
-              id: 'asp-refresh-token',
-              name: 'asp-refresh-token',
-              'data-lpignore': 'true',
-              // Chrome IGNORES autoComplete="off" on a password field: its
-              // password manager still treats this as a login form and fills the
-              // saved credential in, which is exactly the "first input is
-              // auto-filled" report. Only "new-password" makes it stand down.
-              autoComplete: 'new-password',
-              style: S.input,
-              type: 'password',
-              value: refreshToken,
-              placeholder: config.hasRefreshToken ? `${t('tokenPlaceholderMasked')} · ${config.refreshTokenMask ?? ''}` : '',
-              onChange: event => setRefreshToken(event.target.value),
-            })),
-            // How to obtain the refresh token. The platform's console keeps it in
-            // `localStorage` under `refreshToken` (raw string, no JSON wrapper) —
-            // verified against the shipped console bundle, not assumed — so the
-            // console line is the one thing that actually works.
-            h('div', { key: 'howto', style: S.hint }, [
-              h('div', { key: 'p' }, t('refreshTokenHowTo')),
-              h('code', {
-                key: 'c',
-                style: { ...S.mono, display: 'block', marginTop: '4px', padding: '5px 7px', borderRadius: '5px', background: 'var(--dsw-alias-bg-layer-2)', border: '1px solid var(--dsw-alias-border-l2)', userSelect: 'all', wordBreak: 'break-all' },
-              }, t('refreshTokenSnippet')),
-              h('div', { key: 'c2', style: { marginTop: '4px' } }, t('refreshTokenSnippetCopy')),
-            ]),
-            h(Row, { key: 'st', label: t('accessStatus') }, [
-              h('span', { key: 'p', style: S.pill(hasToken ? 'ok' : 'bad') }, credentialLabel(t, config)),
-              h('span', { key: 'e', style: S.hint }, config.hasRefreshToken ? (config.refreshTokenMask ?? '') : t('accessMissing')),
-            ]),
-            h(Row, { key: 'rf', label: t('lastRefreshed') }, h('span', { style: S.hint }, lastRefreshed)),
-            h(Row, { key: 'iv', label: t('pullInterval') }, h('input', {
-              id: 'asp-pull-interval',
-              style: S.inputNarrow,
-              type: 'number',
-              min: 5,
-              max: 1440,
-              value: intervalMin,
-              onChange: event => setIntervalMin(event.target.value),
-            })),
-            h('div', { key: 'mk', style: { display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--dsw-alias-border-l4)', paddingTop: '10px' } }, [
-              h('div', { key: 'h', style: S.hint }, t('modelKeyHint')),
-              h(Row, { key: 's', label: t('modelKey') }, [
-                h('span', { key: 'p', style: S.pill(state.modelKey?.configured === true ? 'ok' : 'bad') },
-                  state.modelKey?.configured === true ? state.modelKey.mask : t('modelKeyMissing')),
-                h(Button, { key: 'f', small: true, onClick: fetchModelKey, disabled: busy !== '' }, t('modelKeyFetch')),
-                h(Button, { key: 'r', small: true, onClick: resetModelKey, disabled: busy !== '', title: t('modelKeyResetWarn') }, t('modelKeyReset')),
-              ]),
-              h(Row, { key: 'paste', label: t('modelKeyPaste') }, [
-                h('input', {
-                  key: 'i',
-                  id: 'asp-model-key-paste',
-                  name: 'asp-model-key-paste',
-                  'data-lpignore': 'true',
-                  // "new-password" rather than "off": Chrome otherwise autofills
-                  // password inputs with a saved credential (see the refreshToken
-                  // field above for the full reason).
-                  autoComplete: 'new-password',
-                  style: S.input,
-                  type: 'password',
-                  value: modelKeyDraft,
-                  placeholder: 'sk-as-…',
-                  onChange: event => setModelKeyDraft(event.target.value),
-                }),
-                h(Button, { key: 'b', small: true, onClick: saveModelKey, disabled: busy !== '' || modelKeyDraft.trim() === '' }, t('save')),
-              ]),
-            ]),
-            h('div', { key: 'save', style: S.row }, h(Button, { primary: true, onClick: saveCredentials, disabled: busy !== '' }, busy === 'credentials' ? t('saving') : t('save'))),
-          ],
+        // The single feedback line for every `run(label, action)` on this page.
+        // It lives at page level because the actions that produce it are spread
+        // across sections (credentials, account pool, check-in, catalog), and an
+        // error rendered inside one section is invisible while the user is
+        // looking at another.
+        error === '' ? null : h('div', { key: 'err', style: S.error }, error),
+        notice === '' ? null : h('div', { key: 'ok', style: S.row }, h('span', { style: S.pill('ok') }, notice)),
+
+        // ---- account pool ----
+        // ABOVE the credentials: "which account am I looking at / who is paying"
+        // has to be settled before the fields below mean anything.
+        h(AccountPoolSection, {
+          key: 'accounts',
+          t,
+          pool: {
+            accounts,
+            activeAccountId,
+            autoSwitch: state.pool?.autoSwitch ?? state.autoSwitch ?? {},
+          },
+          // The masked `sk-as-` key of the BILLING account, straight from the
+          // host. Without it the edit panel was a blank password box: no way to
+          // tell a configured key from a missing one, or one key from another.
+          modelKeyMask: typeof modelKeyView.mask === 'string' ? modelKeyView.mask : '',
+          modelKeyConfigured: modelKeyView.configured === true,
+          modelKeySource: typeof modelKeyView.source === 'string' ? modelKeyView.source : '',
+          onPool: applyPool,
+          patchAccount,
+          reloadPool,
+          run,
+          busy,
+          notify: setNotice,
         }),
 
-        // ---- provider ----
+        // ---- provider ---- (GLOBAL: one switch for the whole installation)
         h(Section, {
           key: 'provider',
           title: t('sectionProvider'),
-          actions: [h('span', { key: 'p', style: S.pill(state.provider?.enabled === true ? 'ok' : undefined) },
-            state.provider?.enabled === true ? t('providerOn') : t('providerOff'))],
+          actions: [
+            h('span', { key: 'g', style: S.pill(undefined) }, safeT(t, 'accountsGlobalHint')),
+            h('span', { key: 'p', style: S.pill(state.provider?.enabled === true ? 'ok' : undefined) },
+              state.provider?.enabled === true ? t('providerOn') : t('providerOff')),
+          ],
           children: [
             h('div', { key: 'hint', style: S.hint }, t('providerHint')),
             h(Row, { key: 'toggle' }, [
@@ -1461,18 +2367,32 @@ window.__ModuleLoader__.load({
                 t('providerEnable'),
               ]),
             ]),
-            h(Row, { key: 'id', label: t('providerId') }, h('span', { style: { ...S.mono, fontSize: '12px' } }, state.provider?.id ?? 'agentscope')),
+            h(Row, { key: 'id', label: t('providerId') }, h('span', { style: S.kvMono }, state.provider?.id ?? 'agentscope')),
             h(Row, { key: 'dn', label: t('providerDisplayName') }, h('span', { style: S.kvVal }, state.provider?.displayName ?? 'AgentScope Platform')),
-            h(Row, { key: 'bu', label: t('providerBaseUrl') }, h('span', { style: { ...S.mono, fontSize: '12px' } }, state.provider?.baseUrl ?? '—')),
+            h(Row, { key: 'bu', label: t('providerBaseUrl') }, h('span', { style: S.kvMono }, state.provider?.baseUrl ?? '—')),
             h(Row, { key: 'pr', label: t('providerProtocol') }, h('span', { style: S.kvVal }, t('providerProtocolOpenAI'))),
           ],
         }),
 
-        // ---- catalog ----
+        // ---- catalog ---- (GLOBAL: the catalog and its metadata are shared by
+        // every account; the model route is one installation-wide provider)
         h(Section, {
           key: 'catalog',
           title: t('sectionCatalog'),
-          actions: [h(Button, { key: 'meta', small: true, onClick: refreshMeta, disabled: busy !== '' }, busy === 'meta' ? t('metaRefreshing') : t('metaRefresh'))],
+          // COLLAPSED BY DEFAULT. A model list is set up once and then left
+          // alone, but each row is a full form: an install with many models
+          // pushed everything below it off the page. The summary keeps the
+          // useful fact (how many models, when they were refreshed) visible.
+          collapsible: true,
+          defaultOpen: false,
+          summary: safeFill(t, 'catalogSummary', {
+            count: catalog.length,
+            at: meta.checkedAt == null ? t('never') : stamp(new Date(meta.checkedAt).toISOString()),
+          }),
+          actions: [
+            h('span', { key: 'g', style: S.pill(undefined) }, safeT(t, 'accountsGlobalHint')),
+            h(Button, { key: 'meta', small: true, onClick: refreshMeta, disabled: busy !== '' }, busy === 'meta' ? t('metaRefreshing') : t('metaRefresh')),
+          ],
           children: [
             h('div', { key: 'meta', style: { ...S.modelCard, gap: '4px' } }, [
               h('div', { key: 's', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('metaSource')), h('span', { key: 'v', style: S.kvVal }, meta.source ?? 'bundled')]),
@@ -1488,6 +2408,14 @@ window.__ModuleLoader__.load({
         h(Section, {
           key: 'checkin',
           title: t('sectionCheckin'),
+          // Collapsed: this runs by itself once enabled, and its four numbers
+          // change at most once a day. The state word stays in the header so a
+          // collapsed section still answers "did today count".
+          collapsible: true,
+          defaultOpen: false,
+          // The state word already sits in the header as a badge, so the summary
+          // carries the fact the badge cannot: which day it refers to.
+          summary: safeFill(t, 'checkinSummary', { day: checkin.day ?? '—' }),
           actions: [h('span', { key: 'p', style: S.pill(statusTone) }, statusLabel)],
           children: [
             h('div', { key: 'hint', style: S.hint }, t('checkinHint')),
@@ -1521,7 +2449,7 @@ window.__ModuleLoader__.load({
               h('div', { key: 'l', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsLifetime')), h('span', { key: 'v', style: S.kvVal }, credit(credits.lifetime_score))]),
               h('div', { key: 'r', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsRedeemable')), h('span', { key: 'v', style: S.kvVal }, credit(credits.redeemable_score))]),
               h('div', { key: 'p', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsPromotion')), h('span', { key: 'v', style: S.kvVal }, promo === null ? '—' : `${promo.title ?? ''}${promo.credit_multiplier != null ? ` ×${promo.credit_multiplier}` : ''}`)]),
-              h('div', { key: 'f', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsFetched')), h('span', { key: 'v', style: S.kvVal }, sharedCredits.at === 0 ? t('never') : `${stamp(new Date(sharedCredits.at).toISOString())}${sharedCredits.error !== '' ? ` · ${sharedCredits.error}` : ''}`)]),
+              h('div', { key: 'f', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsFetched')), h('span', { key: 'v', style: S.kvVal }, creditsAt === 0 ? t('never') : `${stamp(new Date(creditsAt).toISOString())} ${stampZoneLabel()}${creditsError !== '' ? ` · ${creditsError}` : ''}`)]),
             ]),
           ],
         }),
@@ -1529,10 +2457,29 @@ window.__ModuleLoader__.load({
         // ---- usage ---- (before the price list: what you SPENT answers "why is
         // my balance what it is", and a reference table is what you reach for
         // afterwards)
-        h(Section, { key: 'usage', title: t('sectionUsage'), children: h(UsagePanel, { t, hasToken }) }),
+        h(Section, {
+          key: 'usage',
+          title: t('sectionUsage'),
+          // THE BIGGEST OFFENDER, and the least often opened. A page of usage
+          // rows measured 1.8k px against a 485 px viewport, so leaving it open
+          // meant scrolling past half the panel to reach anything below it.
+          collapsible: true,
+          defaultOpen: false,
+          summary: t('usageSummary'),
+          children: [
+            h(UsagePanel, { key: 'panel', t, hasToken }),
+          ],
+        }),
 
         // ---- pricing ----
-        h(Section, { key: 'pricing', title: t('sectionPricing'), children: h(PricingPanel, { t, hasToken }) }),
+        h(Section, {
+          key: 'pricing',
+          title: t('sectionPricing'),
+          collapsible: true,
+          defaultOpen: false,
+          summary: t('pricingSummary'),
+          children: h(PricingPanel, { t, hasToken }),
+        }),
 
 
       ])
@@ -1597,7 +2544,7 @@ window.__ModuleLoader__.load({
     const COMPOSER_PROVIDER = 'agentscope'
 
     /**
-     * Whether the CURRENT projection explicitly names another provider, kept at
+     * Whether the CURRENT session is known to run on another provider, kept at
      * MODULE scope so it survives the session-scoped slot's re-mounts.
      *
      * `conversation.input.right` is a `scope: session` slot: switching sessions
@@ -1606,12 +2553,16 @@ window.__ModuleLoader__.load({
      * (undefined). Treating "not ready" as "not ours" made the pill disappear on
      * a session switch until a model switch forced the projection to settle.
      *
-     * Rule: an ABSENT projection never hides anything (it is not evidence about
-     * the new session). Only a projection that NAMES a different provider hides.
+     * Rule: only a KNOWN foreign provider hides. Unknown (no projection yet)
+     * keeps the previous answer, so a session switch never blanks the readout.
      * This favours a one-frame over-display when moving AWAY from this provider
      * over a long disappearance when moving TO it — the asymmetry is deliberate,
      * and the credits data itself lives in the module-level store, so no blank
      * readout is ever shown.
+     *
+     * "Known" includes the brand-new-session case: a projection that is present
+     * but names nothing resolves through the deployment default (see
+     * {@link defaultProviderStore}), because that is what the picker displays.
      */
     let foreignProvider = false
 
@@ -1620,12 +2571,68 @@ window.__ModuleLoader__.load({
      *
      * `next` outranks `lastUsed`: a switch that has landed but not yet been sent
      * is still what the composer shows, so the readout must follow it.
+     *
+     * An EMPTY but PRESENT projection (`{ lastUsed: null, next: null }`) is the
+     * state of every brand-new session: nothing is recorded yet, and the model
+     * picker displays the deployment default instead. That is NOT "no
+     * information" — it is exactly the case this gate used to get wrong, see
+     * {@link defaultProviderStore}.
      */
     function selectedProviderOf(projection) {
       const candidate = projection?.next ?? projection?.lastUsed
       const provider = candidate?.provider
       return typeof provider === 'string' && provider !== '' ? provider : undefined
     }
+
+    /**
+     * The deployment default provider, fetched once per page.
+     *
+     * WHY THIS EXISTS (the reported defect). A new session's `modelSelection`
+     * projection arrives fully populated — `{ lastUsed: null, next: null }` —
+     * and names no provider. The gate below previously read "no provider" as
+     * "the projection is not ready yet" and kept the readout visible, which is
+     * how an AgentScope balance ended up displayed under a session that was
+     * actually running on another provider: the very thing this gate exists to
+     * prevent. The picker shows the deployment default in that state, so the
+     * readout must be compared against the same default.
+     *
+     * `undefined` = not known yet; `''` = the Host could not answer (an older
+     * Host without `agentDefaultModel`). Both keep the previous behaviour rather
+     * than hiding a reading that may well be correct.
+     */
+    const defaultProviderStore = (() => {
+      let provider
+      let at = 0
+      let inflight
+      const listeners = new Set()
+      const emit = () => { for (const listener of listeners) listener() }
+      /**
+       * How long an answer stays good.
+       *
+       * The deployment default is editable in settings, so caching it for the
+       * whole page life would leave a fresh session gated on a stale route. A
+       * short TTL costs one tiny request per minute at most, and every mount in
+       * between reuses the answer.
+       */
+      const FRESH_MS = 60_000
+      return {
+        subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+        getSnapshot() { return provider },
+        /** Fetch when unknown or stale; every failure settles to `''`. */
+        load() {
+          if (provider !== undefined && Date.now() - at < FRESH_MS) return Promise.resolve(provider)
+          inflight ??= api('/provider/default')
+            .then(answer => {
+              provider = typeof answer?.provider === 'string' ? answer.provider : ''
+              at = Date.now()
+              return provider
+            })
+            .catch(() => { provider = ''; at = Date.now(); return provider })
+            .finally(() => { inflight = undefined; emit() })
+          return inflight
+        },
+      }
+    })()
 
     /**
      * The gated readout.
@@ -1653,10 +2660,32 @@ window.__ModuleLoader__.load({
      * the lifetime of this component. */
     function ProjectedComposerCredits(props) {
       const projection = props.useProjection('modelSelection')
+      // Subscribed so the fetch below can re-render this component once the
+      // deployment default lands; a module-level value alone would not.
+      const defaultProvider = React.useSyncExternalStore(
+        defaultProviderStore.subscribe, defaultProviderStore.getSnapshot)
       const provider = selectedProviderOf(projection)
-      // undefined = projection not ready (session switch in flight). It is NOT
-      // evidence that this session uses another provider, so keep showing.
-      if (provider !== undefined) foreignProvider = provider !== COMPOSER_PROVIDER
+
+      // Fetch the default only when the projection is PRESENT and names nothing
+      // — the new-session state. An ABSENT projection stays a re-mount artefact
+      // (see `foreignProvider`) and must not trigger a request of its own.
+      React.useEffect(() => {
+        if (projection === undefined || provider !== undefined) return
+        void defaultProviderStore.load()
+      }, [projection === undefined, provider])
+
+      // Which provider this session is on, decided from evidence:
+      //   * the projection names one -> that one, authoritative;
+      //   * the projection exists but names none -> the deployment default, which
+      //     is precisely what the model picker displays for a fresh session;
+      //   * there is no projection at all -> unknown (undefined).
+      // Only a KNOWN foreign provider hides. Unknown stays visible, as before.
+      const effective = provider !== undefined
+        ? provider
+        : projection !== undefined && defaultProvider !== undefined && defaultProvider !== ''
+          ? defaultProvider
+          : undefined
+      if (effective !== undefined) foreignProvider = effective !== COMPOSER_PROVIDER
       if (foreignProvider) return null
       return h(ComposerCredits, props)
     }

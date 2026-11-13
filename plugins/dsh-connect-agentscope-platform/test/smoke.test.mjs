@@ -331,11 +331,12 @@ test('an unknown capability group still renders under a generic label', async ()
   assert.match(client, /const key = \{ token: 'pricingGroupToken'/)
 })
 
-test('a refresh token alone makes the account API usable', async () => {
+test('a refresh token alone makes the account API usable', async t => {
   const { CreditEngine } = await import(new URL('../as.js', import.meta.url))
-  const { mkdtempSync } = await import('node:fs')
+  const { mkdtempSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const dir = mkdtempSync(`${tmpdir()}/asp-smoke-`)
+  t.after(() => { rmSync(dir, { recursive: true, force: true }) })
   const engine = new CreditEngine({ stateDir: dir, log: () => {} })
 
   // Only a refresh token: the host exchanges it on the first call, so the panel
@@ -424,11 +425,42 @@ test('the composer readout belongs to this plugin provider only', () => {
   assert.match(client, /const candidate = projection\?\.next \?\? projection\?\.lastUsed/)
   // Not ours -> nothing renders at all.
   // Not-ready projections must not unmount the readout (see the session-switch test).
-  assert.match(client, /if \(provider !== undefined\) foreignProvider = provider !== COMPOSER_PROVIDER/)
   assert.match(client, /if \(foreignProvider\) return null/)
+  // A projection that is PRESENT but names nothing is a brand-new session, not a
+  // re-mount artefact: it resolves through the deployment default, which is what
+  // the picker shows. Reading it as "not ready" kept an AgentScope balance under
+  // another provider's session — the exact defect this gate exists to prevent.
+  assert.match(client, /const defaultProvider = React\.useSyncExternalStore\(/)
+  assert.match(client, /const effective = provider !== undefined/)
+  assert.match(client, /\? defaultProvider\s*\n?\s*: undefined/)
+  assert.match(client, /if \(effective !== undefined\) foreignProvider = effective !== COMPOSER_PROVIDER/)
   // The registration goes through the gate, never the bare readout.
   assert.match(client, /\}, ComposerCreditsGate\)\)/)
   assert.ok(!/\}, ComposerCredits\)\)/.test(client), 'the ungated readout is registered directly')
+})
+
+test('the deployment default provider is asked for, not guessed', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // The browser cannot read `agentDefaultModel`; it must come from the Host over
+  // the plugin's own prefix, behind the same auth gate as every other route.
+  assert.match(host, /if \(sub === '\/provider\/default' && method === 'GET'\) \{/)
+  assert.match(host, /sendJson\(res, 200, \{ provider: defaultProvider\(\) \}\)/)
+  assert.match(host, /function defaultProvider\(\) \{/)
+  assert.match(host, /ctx\.get\('agentDefaultModel'\)/)
+  assert.match(host, /currentSelection\?\.\(\)/)
+  // A Host without that service answers `''` rather than throwing into a request.
+  assert.match(host, /catch \{\s*\n\s*return ''\s*\n\s*\}/)
+  // Cached briefly, not forever: the default is editable in settings, and a
+  // stale route would gate a fresh session on the wrong provider.
+  assert.match(client, /const defaultProviderStore = \(\(\) => \{/)
+  assert.match(client, /const FRESH_MS = 60_000/)
+  assert.match(client, /if \(provider !== undefined && Date\.now\(\) - at < FRESH_MS\) return Promise\.resolve\(provider\)/)
+  assert.match(client, /inflight \?\?= api\('\/provider\/default'\)/)
+  assert.match(client, /\.catch\(\(\) => \{ provider = ''; at = Date\.now\(\); return provider \}\)/)
+  // Only a new-session projection (present, naming nothing) triggers the fetch.
+  assert.match(client, /if \(projection === undefined \|\| provider !== undefined\) return/)
+  assert.match(client, /void defaultProviderStore\.load\(\)/)
 })
 
 test('the model catalog starts empty and stays empty', () => {
@@ -539,17 +571,30 @@ test('account-writing actions are gone from the daily check-in and credits panel
   assert.ok(!/sub === '\/redeem'|sub === '\/campaigns'/.test(host), 'write routes are still exposed')
 })
 
-test('usage timestamps are converted into the viewer local time zone', () => {
+test('every timestamp in the panel is stated in ONE zone', () => {
   const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
   // The platform returns Beijing wall-clock strings with NO offset; new Date()
   // would parse them as the browser's own zone, which is wrong off UTC+8.
   assert.match(client, /function localTime\(raw\)/)
   assert.match(client, /\+08:00/)
-  assert.match(client, /Intl\.DateTimeFormat\(undefined/)
   assert.match(client, /localTime\(item\.created_at\)/)
   assert.ok(!/item\.created_at \?\? '—'/.test(client), 'the raw wall-clock string is still rendered')
-  // Copy must no longer claim the raw value is shown.
-  assert.ok(!/北京时间原值|Beijing wall-clock values the platform returns/.test(client))
+
+  // ...and the zone is FIXED, not the viewer's. This panel sits next to a
+  // check-in block whose day boundary is Asia/Shanghai; formatting the stamps
+  // beside it in the browser's zone made the panel contradict itself (a UTC+9
+  // browser showed "today 2026-11-14" next to a 01:04 that Shanghai recorded
+  // as 00:04). Both formatters now read one constant.
+  assert.match(client, /const PANEL_ZONE = 'Asia\/Shanghai'/)
+  assert.match(client, /timeZone: PANEL_ZONE/)
+  const undefinedLocale = /Intl\.DateTimeFormat\(undefined/.test(client)
+  assert.ok(!undefinedLocale, 'a formatter still follows the browser locale/zone')
+  // No formatter may fall back to the machine's own clock.
+  const usesGetHours = /pad\(date\.getHours\(\)\)/.test(client)
+  assert.ok(!usesGetHours, 'a timestamp is formatted from the machine clock')
+  // A fixed zone is labelled, so a viewer elsewhere does not read it as theirs.
+  assert.match(client, /function stampZoneLabel\(\)/)
+  assert.match(client, /stampZoneLabel\(\)/)
 })
 
 test('the daily check-in logs in at most once per local day', async () => {
@@ -680,12 +725,16 @@ test('the login panel says how to get a refresh token and when it last refreshed
   assert.equal(snippets.length, 2, 'the snippet must exist in both dictionaries')
   assert.equal(snippets[0], snippets[1], 'the snippet differs between languages')
   assert.equal(snippets[0], "localStorage.getItem('refreshToken')")
-  for (const key of ['refreshTokenHowTo', 'lastRefreshed', 'neverRefreshed']) {
+  for (const key of ['refreshTokenHowTo']) {
     assert.equal((client.match(new RegExp(`\\n      ${key}:`, 'g')) || []).length, 2, `${key} must exist in both dictionaries`)
   }
-  // It has to be rendered: a dictionary entry nobody shows is dead weight.
-  assert.match(client, /h\('code', \{[\s\S]{0,400}t\('refreshTokenSnippet'\)/)
-  assert.match(client, /label: t\('lastRefreshed'\)/)
+  // It has to be rendered: a dictionary entry nobody shows is dead weight. Both
+  // live in the pool row's editor now that the separate credentials section is
+  // gone — one account, one place to edit it.
+  assert.match(client, /h\('code', \{[\s\S]{0,400}safeT\(t, 'refreshTokenSnippet'\)/)
+  assert.match(client, /h\('span', \{ key: 'r', style: S\.kvKey \},\s*\n\s*`\$\{safeT\(t, 'accountLastRefreshed'\)\}/)
+  // The "last refreshed" stamp per account, in both dictionaries.
+  assert.equal((client.match(/\n      accountLastRefreshed:/g) || []).length, 2, 'accountLastRefreshed must exist in both dictionaries')
 
   // The stamp itself comes from the host: set ONLY on a successful exchange, so
   // a rejected token cannot make the panel claim a refresh that never happened.
@@ -835,10 +884,10 @@ test('switching sessions does not hide the credits pill', () => {
   // occupants on a session switch, and `useProjection('modelSelection')` is not
   // ready on the first render. Gating on `undefined` unmounted the whole readout
   // until a model switch forced the projection to settle.
-  // Only a projection that NAMES a different provider hides; an absent
-  // projection (session switch in flight) keeps the pill visible.
+  // Only a KNOWN provider decides; an absent projection (session switch in
+  // flight) keeps the pill visible.
   assert.match(client, /let foreignProvider = false/)
-  assert.match(client, /if \(provider !== undefined\) foreignProvider = provider !== COMPOSER_PROVIDER/)
+  assert.match(client, /if \(effective !== undefined\) foreignProvider = effective !== COMPOSER_PROVIDER/)
   assert.match(client, /if \(foreignProvider\) return null/)
   // Data also lives at module scope (creditsStore), so a re-mount cannot blank it.
   assert.match(client, /const creditsStore = \(\(\) => \{/)
@@ -847,4 +896,359 @@ test('switching sessions does not hide the credits pill', () => {
   assert.match(client, /async refresh\(force = false, freshMs = 30_000\)/)
   assert.match(client, /if \(!force && snapshot\.at > 0 && Date\.now\(\) - snapshot\.at < freshMs/)
   assert.match(client, /creditsStore\.refresh\(true\)/)
+})
+
+// ---------------------------------------------------------------------------
+// Account pool (multi-account) — structural nails, not red/green drivers.
+//
+// The behavioural half of the pool lives in test/measurements.test.mjs, where
+// each seam was driven red before it was implemented. What belongs HERE is the
+// set of things that must never drift: the frozen contract strings, the shape
+// the browser half hard-codes, and the single decision (a live `apiKey` getter
+// instead of re-registering the provider) that the whole switching story rests
+// on. A well-meaning "fix" to any of them breaks a running install silently.
+// ---------------------------------------------------------------------------
+
+test('the pool adds three fields to /state and keeps every old one', async () => {
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // The three fields the browser half reads off the aggregate state.
+  assert.match(host, /\baccounts,/)
+  assert.match(host, /\bactiveAccountId:/)
+  assert.match(host, /\bpool: \{ autoSwitch:/)
+  // Every field an earlier release served must still be present, BY NAME. The
+  // count is deliberately NOT asserted: TDD-SEAMS §0 #4 found the plan's "9
+  // groups" was a miscount of the eight keys the source actually returned, so a
+  // literal count would fail for the wrong reason the moment a field is added.
+  // Matched as `key:` OR as a shorthand property (`settingsNs,`), because
+  // `settingsNs` is the one field the aggregate state passes by bare name.
+  for (const key of ['build', 'provider', 'modelKey', 'catalog', 'meta', 'checkin', 'credits', 'settingsNs']) {
+    assert.ok(new RegExp(`\\b${key}(?::|,)`).test(host), `fullState lost the ${key} field`)
+  }
+  // The build stamp moves forward with this release; the shape is what matters.
+  assert.match(host, /const BUILD = 'asp-2026-11-12\.8'/)
+})
+
+test('switching an account does not re-register the provider', () => {
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // THE decision that makes switching free: the adapter holds a GETTER, so a new
+  // request picks up the new key on its own. Re-registering instead would drop
+  // the in-flight streams of every session, and it is the tempting "fix" when a
+  // switched-to account appears not to be used.
+  assert.match(host, /apiKey: \(\) => accountPool\.active\(\)\?\.modelKey\.key/,
+    'the apiKey getter must read the ACTIVE account at call time')
+  // The getter is the only way a key reaches the adapter.
+  assert.ok(!/apiKey: \(\) => modelKey\.key/.test(host),
+    'a stale closure over the single-account model key came back')
+  // Discovery reads the same live key, not a captured copy.
+  assert.match(host, /accountPool\.active\(\)/)
+})
+
+test('the pool endpoints sit behind the one auth gate', () => {
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // `handle()` opens with the gate; a new endpoint reached through it inherits
+  // the check. An endpoint mounted on its own route would not.
+  assert.match(host, /async function handle\(req, res, checkAuth\) \{\s*\n\s*if \(typeof checkAuth === 'function' && !checkAuth\(req, res\)\) return/)
+  for (const route of [
+    "sub === '/accounts' && method === 'GET'",
+    "sub === '/accounts' && method === 'POST'",
+    "sub === '/accounts/remove'",
+    "sub === '/accounts/rename'",
+    "sub === '/accounts/enable'",
+    "sub === '/accounts/switch'",
+    "sub === '/accounts/test'",
+    "sub === '/accounts/auto-switch'",
+  ]) {
+    assert.ok(host.includes(route), `missing pool endpoint: ${route}`)
+  }
+  // A second mount point would be a second place to forget the gate.
+  const mounts = [...host.matchAll(/webServer\.register\(/g)]
+  assert.equal(mounts.length, 1, 'the plugin must mount exactly one HTTP route')
+})
+
+test('an account projection never carries a credential', () => {
+  const runtime = readFileSync(join(packageRoot, 'account-runtime.js'), 'utf8')
+  // The browser half renders `list()`. A projection that leaked a token would
+  // ship it to every open tab and into any screenshot of the panel.
+  const projection = /projectAccount|function projectionOf|list\(\) \{[\s\S]{0,1400}?\n  \}/.exec(runtime)
+  assert.ok(projection !== null, 'the projection builder moved; re-anchor this nail')
+  for (const secret of ['refreshToken', 'accessToken']) {
+    assert.ok(!new RegExp(`\\b${secret}\\b\\s*:`).test(projection[0]),
+      `the projection exposes ${secret}`)
+  }
+})
+
+test('the pool is torn down with the plugin, timers included', () => {
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // A hot reload that leaves a scheduler armed gives the user two schedulers,
+  // two check-ins and two sets of notifications for one account.
+  assert.match(host, /accountPool\.(dispose|stop)\(\)/)
+})
+
+test('the new modules are declared for packing and for import', () => {
+  // Both must be listed or `npm pack` drops them from the published tarball, and
+  // a subpath export that resolves to nothing breaks a consumer's import.
+  assert.equal(manifest.exports['./measurements'], './measurements.js')
+  assert.equal(manifest.exports['./account-runtime'], './account-runtime.js')
+  assert.ok(manifest.files.includes('measurements.js'))
+  assert.ok(manifest.files.includes('account-runtime.js'))
+})
+
+test('the pool wording reaches every surface that advertises the plugin', () => {
+  // One summary changed means all of them change: the package description, the
+  // market summary in both languages, and both READMEs. A surface left on the
+  // old "one account" story contradicts the panel the user then opens.
+  assert.match(manifest.description, /accounts/i)
+  assert.match(manifest.dsh.catalog.summary.en, /accounts/i)
+  assert.match(manifest.dsh.catalog.summary.zh, /账号/)
+  const en = readFileSync(join(packageRoot, 'README.md'), 'utf8')
+  const zh = readFileSync(join(packageRoot, 'docs/README.zh-CN.md'), 'utf8')
+  assert.ok(!en.includes('One account per installation'), 'the English README still says one account')
+  assert.ok(!zh.includes('一台机器一个账户'), 'the Chinese README still says one account')
+  // The stated limit is the ADR's consequence: switching is not failover.
+  assert.match(en, /new requests/i)
+  assert.match(zh, /新发起|新请求/)
+})
+
+test('the long tail of the panel is collapsed, the daily surface is not', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // Measured before this change: the page was 3594 px against a 485 px viewport,
+  // and the usage table alone was 1848 px of it — half the panel was a screen
+  // most people open once a month. Sections that are set up once are collapsed
+  // by default; the two a visit actually needs are not.
+  assert.match(client, /function Section\(props\)/, 'Section lost its definition')
+  assert.match(client, /const \{ collapsible = false, defaultOpen = true, summary = null \} = props/)
+  assert.match(client, /const \[open, setOpen\] = React\.useState\(defaultOpen\)/)
+  // A real disclosure control, not a clickable div.
+  assert.match(client, /'aria-expanded': showing/)
+  // Every collapsed section keeps a summary line, or collapsing would just hide
+  // information behind a click with no way to tell what is inside.
+  for (const key of ['catalogSummary', 'checkinSummary', 'usageSummary', 'pricingSummary']) {
+    assert.match(client, new RegExp(`${key}:`), `${key} is missing from a dictionary`)
+  }
+  // The four one-off sections are the ones that collapse.
+  for (const key of ['catalog', 'checkin', 'usage', 'pricing']) {
+    const block = new RegExp(`key: '${key}',[\\s\\S]{0,400}?defaultOpen: false`)
+    assert.match(client, block, `${key} should start collapsed`)
+  }
+  // The composer-adjacent surfaces — who pays, and how much is left — stay open.
+  //
+  // Anchored on the section's own `key:` and the NEXT section's, not on a fixed
+  // character window: an explanatory comment above `children` used to be enough
+  // to push the match out of range and fail a correct file.
+  const sectionBody = key => {
+    const start = client.indexOf(`key: '${key}',`)
+    assert.ok(start >= 0, `section ${key} moved`)
+    const end = client.indexOf('h(Section, {', start)
+    return client.slice(start, end < 0 ? start + 1200 : end)
+  }
+  for (const key of ['accounts', 'credits']) {
+    const body = sectionBody(key)
+    assert.ok(!/defaultOpen: false/.test(body), `${key} must stay expanded`)
+  }
+})
+
+test('an inert save chip says why instead of looking broken', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // Reported as "I clicked it and nothing happened". Both key saves are disabled
+  // until something is typed — correct — but a disabled chip with no explanation
+  // and no visual difference reads as a dead feature.
+  assert.match(client, /title: editToken\.trim\(\) === '' \? safeT\(t, 'tokenPasteFirst'\) : safeT\(t, 'save'\)/)
+  assert.match(client, /title: editModelKey\.trim\(\) === '' \? safeT\(t, 'modelKeyPasteFirst'\) : safeT\(t, 'save'\)/)
+  // The reason is also stated in place, not only behind a hover.
+  assert.match(client, /key: 'saveHint', style: S\.hint/)
+  for (const key of ['tokenPasteFirst', 'modelKeyPasteFirst', 'tokenHowToToggle']) {
+    const count = (client.match(new RegExp(`${key}:`, 'g')) || []).length
+    assert.ok(count >= 2, `${key} is missing from one of the dictionaries`)
+  }
+  // The console recipe is a one-time read; leaving it expanded pushed the actual
+  // controls below the fold inside an already tall edit panel.
+  assert.match(client, /h\('details', \{ key: 'howto' \}/)
+  assert.match(client, /h\('summary', \{ key: 's', style: S\.detailsSummary \}/)
+})
+
+test('every text style states its size instead of inheriting one', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // Reported as "the text in the model provider block is inconsistently
+  // sized". Cause: `kvVal` carried only a colour, so a value beside a 12px label
+  // rendered at the browser default; only the rows that happened to add an
+  // inline `fontSize` looked right. The scale is now declared once.
+  const block = /const S = \{([\s\S]*?)\n    \}/.exec(client)
+  assert.ok(block !== null, 'the style object moved; re-anchor this nail')
+  for (const key of ['kvVal', 'kvMono', 'kv', 'label', 'hint', 'sectionTitle', 'input', 'button']) {
+    const entry = new RegExp(`${key}: \\{[^}]*fontSize`).exec(block[1])
+    assert.ok(entry !== null, `S.${key} does not state a fontSize`)
+  }
+  // One monospace style for values; no row may patch a size onto S.mono again.
+  assert.match(client, /kvMono: \{ fontFamily: 'ui-monospace/)
+  const inlineMonoSize = (client.match(/\.\.\.S\.mono, fontSize/g) || []).length
+  assert.equal(inlineMonoSize, 0, `an inline mono font size came back (${inlineMonoSize} sites)`)
+})
+
+test('the paying account row is distinguishable before reading it', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // Every row used to be drawn identically; the only cue that one of them pays
+  // for new requests was a small "Current" word inside it.
+  assert.match(client, /const isCurrent = account\.active === true/)
+  assert.match(client, /style: isCurrent \? \{ \.\.\.rowStyle, \.\.\.S\.rowCurrent \} : rowStyle/)
+  assert.match(client, /rowCurrent: \{/)
+  assert.match(client, /borderLeft: '3px solid var\(--dsw-alias-accent-primary, #1F6FEB\)'/)
+  // A rule that stops at the buttons reads as a clipped tick: the row needs a
+  // bottom edge of its own, because the section supplies none.
+  assert.match(client, /paddingBottom: '8px'/)
+  // The header badge must not restate the current account (the picker below and
+  // the highlighted row both already say it). It answers the other question.
+  assert.match(client, /accountCount: '\{count\} 个账号'/)
+  assert.match(client, /safeFill\(t, 'accountCount', \{ count: accounts\.length \}\)/)
+  assert.ok(!/actions: \[h\('span', \{ key: 'p', style: S\.pill\(activeAccountId === ''/.test(client),
+    'the section header still repeats the current account name')
+})
+
+test('the page header says what it is and links to the platform', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  const zh = JSON.parse(readFileSync(join(packageRoot, 'locale/zh.json'), 'utf8'))
+  const en = JSON.parse(readFileSync(join(packageRoot, 'locale/en.json'), 'utf8'))
+  // A section that opens on seven control groups with no sentence of context
+  // makes the reader reverse-engineer its purpose from the controls.
+  assert.match(client, /pageLead:/)
+  assert.match(client, /h\('p', \{ key: 'lead', style: S\.sub \}, t\('pageLead'\)\)/)
+  // The platform the account actually lives on, reachable from the header.
+  assert.match(client, /const PLATFORM_URL = 'https:\/\/platform\.agentscope\.io\/'/)
+  assert.match(client, /href: PLATFORM_URL/)
+  // A settings panel sits inside a modal: the link must not replace it.
+  assert.match(client, /target: '_blank'/)
+  assert.match(client, /rel: 'noreferrer noopener'/)
+  assert.match(client, /platformLink: 'platform\.agentscope\.io'/)
+  // The catalogue description must name what the plugin actually does, in both
+  // languages, instead of a generic "integrates with".
+  for (const meta of [zh.meta, en.meta]) {
+    assert.ok(typeof meta.description === 'string' && meta.description.length > 80,
+      'the module description lost its detail')
+    assert.match(meta.description, /Credits/, 'the description omits the credits readout')
+    assert.match(meta.description, /catalog|模型目录/i, 'the description omits the model catalogue')
+  }
+})
+
+test('a configured key shows its head and tail, not a blank box', async () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // The edit panel used to be an empty password input with no statement about
+  // what was already stored: a user could not tell a configured key from a
+  // missing one, nor one key from another. The host already answers with a
+  // head-and-tail mask, so the panel now prints it.
+  assert.match(client, /modelKeyMask: typeof modelKeyView\.mask === 'string' \? modelKeyView\.mask : ''/)
+  assert.match(client, /modelKeyConfigured: modelKeyView\.configured === true/)
+  assert.match(client, /key: 'now', style: \{ \.\.\.S\.kv, justifyContent: 'flex-start', gap: '8px' \}/)
+  // Monospace values now come from one shared style (S.kvMono) rather than an
+  // inline `...S.mono, fontSize` patch per row.
+  assert.match(client, /modelKeyConfigured\s*\n?\s*\? h\('span', \{ key: 'v', style: S\.kvMono \}/)
+  // The route that produced the stored key is named, not guessed.
+  assert.match(client, /function modelKeySourceLabel\(t, source\)/)
+  assert.match(client, /if \(source === 'pasted'\) return safeT\(t, 'modelKeySourcePasted'\)/)
+  assert.match(client, /if \(source === 'fetched'\) return safeT\(t, 'modelKeySourceFetched'\)/)
+  // The mask itself keeps a recognisable head and tail; a secret must never be
+  // rendered in full by either half.
+  const { maskSecret } = await import(new URL('../as.js', import.meta.url))
+  const masked = maskSecret('sk-as-NL0123456789abcdefghijklmnopqrstuvwxyz3Dy8')
+  assert.ok(masked.startsWith('sk-as-NL'), `mask lost its head: ${masked}`)
+  assert.ok(masked.endsWith('3Dy8 (len 48)'), `mask lost its tail: ${masked}`)
+  assert.ok(!masked.includes('0123456789abcdefghijklmnopqrstuvwxyz'), 'the middle of the key leaked')
+})
+
+test('the destructive account action is separated from the routine ones', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // Five same-weight chips in a row put "Remove" one slip away from "Probe".
+  // The destructive pair is pushed to the far end and coloured, and the variant
+  // merge keeps a caller's style from replacing the whole button.
+  assert.match(client, /h\('span', \{ key: 'gap', 'aria-hidden': 'true', style: \{ flex: '1 1 auto' \} \}\)/)
+  assert.match(client, /buttonDanger: \{ border: '1px solid var\(--dsw-alias-border-l2\)', color: 'var\(--dsw-alias-state-error-primary\)' \}/)
+  const dangerUses = (client.match(/style: S\.buttonDanger/g) || []).length
+  assert.ok(dangerUses >= 2, `expected the remove chip in both states, found ${dangerUses}`)
+  // `Button` merges style now; spreading `rest` last used to REPLACE the variant.
+  assert.match(client, /const merged = style === undefined \? base : \{ \.\.\.base, \.\.\.style \}/)
+  // A disabled chip must LOOK disabled: it used to be pixel-identical to an
+  // enabled one, and every "this button does nothing" report started there.
+  assert.match(client, /disabled === true \? \{ \.\.\.merged, opacity: 0\.5, cursor: 'not-allowed' \} : merged/)
+})
+
+test('the account pool UI keeps the composer readout untouched', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // The pool section is additive. The composer pill is shared with every other
+  // provider and keeps its own gate, store and narrow-screen rule.
+  assert.match(client, /function AccountPoolSection\(/)
+  assert.match(client, /const COMPOSER_PROVIDER = 'agentscope'/)
+  assert.match(client, /const creditsStore = \(\(\) => \{/)
+  // The auto-switch copy must state the limit instead of implying failover.
+  assert.ok(!/自动故障切换/.test(client), 'the UI promises failover, which ADR 0001 rules out')
+  assert.match(client, /accountAutoSwitchHint/)
+  // The Chinese and English dictionaries stay the same size and the same keys.
+  const zhBlock = /const zh = \{([\s\S]*?)\n    \}/.exec(client)
+  const enBlock = /const en = \{([\s\S]*?)\n    \}/.exec(client)
+  assert.ok(zhBlock !== null && enBlock !== null, 'the inline dictionaries moved; re-anchor this nail')
+  const keysOf = block => [...block.matchAll(/^\s{6}([A-Za-z][A-Za-z0-9]*):/gm)].map(m => m[1]).sort()
+  assert.deepEqual(keysOf(zhBlock[1]), keysOf(enBlock[1]), 'the two dictionaries diverged')
+})
+
+test('every credit reading on screen comes from ONE measurement', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  // The pill, the credits section and the account row all describe the BILLING
+  // account. They disagreed before because the pill read the platform live while
+  // the row showed whatever the last probe recorded.
+  // (a) Host: the pill's route goes THROUGH the pool's probe, so the read that
+  //     renders the balance is also the read that records it.
+  assert.match(host, /const measured = await accountPool\.probe\(accountId\)/)
+  assert.ok(!/await runtime\.engine\.quickCredits\(\)[\s\S]{0,200}accountLabel/.test(host),
+    'the pill went back to reading the engine directly, which writes no measurement')
+  // (b) Host: the reported instant is the record's own, not a second clock read.
+  assert.match(host, /const at = new Date\(measured\.probe\?\.atMs \?\? Date\.now\(\)\)\.toISOString\(\)/)
+  // (c) Client: a new shared reading re-reads the aggregate state, so the account
+  //     rows follow the pill instead of waiting for the panel to be reopened.
+  assert.match(client, /const creditsAt = sharedCredits\.at/)
+  assert.match(client, /if \(creditsAt === 0\) return\n\s*void load\(\)/)
+  // (d) Client: a switch invalidates every reading — the cache belonged to the
+  //     previous account, and the check-in block does not ride the pool answer.
+  assert.match(client, /const switching = typeof answer\.activeAccountId === 'string'/)
+  assert.match(client, /if \(switching\) \{/)
+  assert.match(client, /void load\(\)\n\s*void creditsStore\.refresh\(true\)/)
+})
+
+test('credentials are edited inside the account row, not in a second section', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  // One account, one place to edit it. A separate "Credentials and model key"
+  // section edited whichever account the view picker pointed at, which made two
+  // controls for one file and two ways for them to disagree — the panel now has
+  // exactly one editor, and it belongs to the row you opened.
+  assert.ok(!/sectionCredentials/.test(client), 'the separate credentials section came back')
+  assert.ok(!/key: 'cred'/.test(client), 'the credentials section is still mounted')
+  // No second notion of "the current account": the billed-to account is the one
+  // every section reads, so there is nothing to reconcile.
+  assert.ok(!/accountViewLabel|accountViewMismatch|viewedAccountId|accountIdForView/.test(client),
+    'the viewed-account concept came back')
+  assert.ok(!/key: 'view'/.test(client), 'the viewed-account picker is still mounted')
+  // The per-row editor carries the credentials, keyed by the row's own id.
+  for (const id of ['asp-account-edit-', 'asp-account-token-', 'asp-account-key-fetch-', 'asp-account-interval-']) {
+    assert.ok(client.includes(id), `the row editor lost ${id}`)
+  }
+  // Every credential field still opts out of the password manager.
+  const newPassword = (client.match(/autoComplete: 'new-password'/g) || []).length
+  assert.ok(newPassword >= 3, `expected new-password on every secret field, got ${newPassword}`)
+})
+
+test('no account is marked as a leftover from an earlier build', () => {
+  const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
+  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
+  const runtime = readFileSync(join(packageRoot, 'account-runtime.js'), 'utf8')
+  const measurements = readFileSync(join(packageRoot, 'measurements.js'), 'utf8')
+  const paths = readFileSync(join(packageRoot, 'paths.js'), 'utf8')
+  // Every account is ordinary: a hash-shaped id with no marker that would make
+  // one row look special in the panel. Credentials adopted from an older install
+  // are copied into an account directory and then treated like any other.
+  for (const [name, source] of [['client.js', client], ['index.js', host], ['account-runtime.js', runtime],
+    ['measurements.js', measurements], ['paths.js', paths]]) {
+    assert.ok(!/legacy|LEGACY/.test(source), `${name} still carries the legacy concept`)
+  }
+  assert.ok(!/默认账号/.test(client), 'the panel still names one account as the old default')
+  // The adoption path must still exist — dropping the concept must not mean
+  // dropping the user's credentials.
+  assert.match(measurements, /adoptSingleAccountInstall/)
 })
