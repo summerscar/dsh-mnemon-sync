@@ -1,6 +1,6 @@
 {
   "name": "@summerscar/dsh-connect-agentscope-platform",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AgentScope Platform for DeepSeek Harness: an optional OpenAI-compatible model provider you switch on when you want it, a pool of platform accounts with manual switching and credit-aware auto-selection, a credit and redeemable-contribution readout under the composer, and a settings panel for the daily check-in, credit balance, contribution grants and a paginated usage-detail query.",
   "type": "module",
   "main": "index.js",
@@ -129,5 +129,8 @@
     "@earendil-works/pi-ai": {
       "optional": true
     }
+  },
+  "dshRelease": {
+    "contentHash": "257e8f314146330a0c678fe12e26161bb5dbda64b933c6fef9a7dd7ff7431365"
   }
 }

@@ -16,10 +16,15 @@
     },
     {
       "name": "@summerscar/dsh-connect-agentscope-platform",
-      "state": "testing",
+      "state": "published",
       "reason": {
-        "zh": "首次交付进入检查与验收：账号池、额度同源与设置面板已完成，测试、打包与发布校验已通过，等待明确授权后做首次发布。",
-        "en": "First delivery is in check and acceptance: the account pool, single-source credit readings and settings panel are done, with tests, packaging and release checks passing; awaiting explicit approval for the first publication."
+        "zh": "已有 npm 发布记录；后续版本按正常更新流程维护。",
+        "en": "Published on npm; subsequent versions follow the normal update workflow."
+      },
+      "publication": {
+        "version": "0.1.1",
+        "publishedAt": "2026-11-13T22:02:00.760Z",
+        "integrity": "sha512-6A1m4mcQ8XJ2efNrPL9R7BQl/k2wHEHrCxl4Mrfxvp+kb9e3zwbmFU/jKRV3+JHidxdK4+iaI4QenhQioj7OMA=="
       }
     }
   ]
