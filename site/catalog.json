@@ -50,6 +50,26 @@
       },
       "repository": "https://github.com/summerscar/dsh-plugins",
       "directory": "plugins/dsh-mnemon-sync"
+    },
+    {
+      "slug": "connect-agentscope-platform",
+      "package": "@summerscar/dsh-connect-agentscope-platform",
+      "category": "tool",
+      "kind": "plugin",
+      "title": {
+        "zh": "AgentScope Platform",
+        "en": "AgentScope Platform"
+      },
+      "summary": {
+        "zh": "把 AgentScope Platform 接入 DSH：可自行开关的 OpenAI 兼容模型供应商、可手动切换或按剩余额度自动选优的平台账号池、输入框下方的额度读数，以及包含每日签到、可用 Credits、可兑换贡献值、用量明细与价目表的设置面板。",
+        "en": "AgentScope Platform for DSH: an optional OpenAI-compatible provider you switch on yourself, a pool of platform accounts you can switch between by hand or by remaining credits, a credit readout under the composer, and a settings panel for the daily check-in, credits, contribution grants, usage detail and the console's price list."
+      },
+      "readme": {
+        "zh": "docs/README.zh-CN.md",
+        "en": "README.md"
+      },
+      "repository": "https://github.com/summerscar/dsh-plugins",
+      "directory": "plugins/dsh-connect-agentscope-platform"
     }
   ]
 }

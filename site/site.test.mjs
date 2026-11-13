@@ -106,29 +106,33 @@ test("every category the catalog declares is translated, and none is orphaned", 
 
 function fixture() {
   const data = {};
-  data[pkg.package] = {
-    name: pkg.package,
-    version: "0.1.11",
-    created: "2026-01-01T00:00:00.000Z",
-    modified: "2026-02-01T00:00:00.000Z",
-    versions: [{ version: "0.1.11", date: "2026-02-01T00:00:00.000Z" }],
-    manifest: {
-      license: "SEE LICENSE IN LICENSE",
-      engines: { dsh: ">=0.2.1-rc.1" },
-      dependencies: {},
-      peerDependencies: { "dsh-mnemon": ">=0.5.40" },
-      peerDependenciesMeta: { "dsh-mnemon": { optional: true } },
-      keywords: [pkg.slug],
-      dsh: { bundle: { patch: "./cordis.patch.yml" } },
-    },
-    files: ["/LICENSE", "/README.md"],
-    // Only the English README is present in this fixture: the Chinese page
-    // falls back to it, which is what the asset-rewriting test below relies on.
-    readme: {
-      en: { path: pkg.readme.en, text: `# ${pkg.package}\n\nSee [zh](${pkg.readme.zh}).\n\n## Usage\n\nText.` },
-    },
-    icon: '<svg xmlns="http://www.w3.org/2000/svg"/>',
-  };
+  for (const entry of catalog.plugins) {
+    data[entry.package] = {
+      name: entry.package,
+      version: entry === pkg ? "0.1.11" : "0.1.0",
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-02-01T00:00:00.000Z",
+      versions: [{ version: entry === pkg ? "0.1.11" : "0.1.0", date: "2026-02-01T00:00:00.000Z" }],
+      manifest: {
+        license: "SEE LICENSE IN LICENSE",
+        engines: { dsh: ">=0.2.1-rc.1" },
+        dependencies: {},
+        // The first catalog entry carries the optional-peer case the install
+        // assertions below depend on; the others stay peer-free.
+        peerDependencies: entry === pkg ? { "dsh-mnemon": ">=0.5.40" } : {},
+        peerDependenciesMeta: entry === pkg ? { "dsh-mnemon": { optional: true } } : {},
+        keywords: [entry.slug],
+        dsh: { bundle: { patch: "./cordis.patch.yml" } },
+      },
+      files: ["/LICENSE", "/README.md"],
+      // Only the English README is present in this fixture: the Chinese page
+      // falls back to it, which is what the asset-rewriting test below relies on.
+      readme: {
+        en: { path: entry.readme.en, text: `# ${entry.package}\n\nSee [zh](${entry.readme.zh}).\n\n## Usage\n\nText.` },
+      },
+      icon: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    };
+  }
   return data;
 }
 
@@ -165,7 +169,7 @@ test("site rendering covers the plugin in both languages with valid local links"
 
   const siteIndex = JSON.parse(files.get("index.json"));
   assert.equal(siteIndex.format, 1);
-  assert.deepEqual(siteIndex.plugins.map((p) => p.name), [pkg.package]);
+  assert.deepEqual(siteIndex.plugins.map((p) => p.name), catalog.plugins.map((p) => p.package));
   const entry = siteIndex.plugins[0];
   assert.equal(entry.metadata.category, pkg.category);
   assert.equal(entry.versions[0].publishTimestamp, Math.floor(Date.parse(data[pkg.package].modified) / 1000));
