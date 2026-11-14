@@ -101,6 +101,8 @@ npm 上有 `latest` 之后才做（规则见 `site/AGENTS.md`）：
 - **以为 `engines.dsh` 的预发布范围会漏掉下一个 rc** → 不会。DSH 用 `includePrerelease: true` 判定（`dsh-app-boot/lib/index.js` 的 `unmetRequirements()`），`0.2.3-rc.1` / `0.3.0-rc.1` 都放行；而 pnpm/npm **根本不校验** `engines.dsh` 这个自定义字段。别为「可能会漏」单独发一版。真正要留意的是反过来的风险：**manifest 有 `engines.dsh` 时 peer 完全不参与判定**，哪天有人把它删了，peer 立刻接手，那些开放下界的预发布范围才开始漏版本——删它属于破坏性改动，不是清理。
 - **从会话日志读用量/成败时读错字段位置** → `assistant/message` 的 token 用量在 **`data.usage`**，`data.message.usage` 恒为 `undefined`；`tool/result` **没有 `data.ok` 字段**，成败看 **`data.message.isError`**，HTTP 细节在 `data.meta`（`statusCode` / `truncated` / `sources` / `answer`）。拿 `undefined` 当「产品没记录」之前，先 `Object.keys(data)` 把容器键打出来。
 - **只验 adapter 就宣称「链路通了」** → 脚本直连 `pi-adapter` 只能证明「凭据取得 → 模型调起 → 流式返回」，证明不了界面路径（切模型后路由到哪个 provider、UI 取凭据走哪条路、会话是否落盘、工具调用能否回填）。两条路径要分别验，结论也分别写。
+- **测试断言锁死数量**（如 `assert.equal(match(/res\.statusCode = 401/g).length, 2)`）→ 现在对得上，但以后**合法地**加第三个 401 出口（典型场景：给 `requestRejection` 抛异常加兜底）就会误报，把人引去查一个不存在的 bug。写「**至少 N**」或**按出口分别断言**，别按总数判断。判据来自实测：把「服务缺失」出口的 401 改成 200，行为测试单独失败——说明行为断言有效；而数量断言只会在扩出口时误伤。
+- **判断测试是否有效，别只读 diff** → 做**变异测试**：故意把被测的那道保护拆掉或改坏，看测试会不会红。拆掉鉴权门 → 3 条失败；只把 401 改 200 → 2 条失败，其中行为测试单独抓到。红不了，说明测试形同虚设。反之，也要防止测试**把旧缺陷锁成必须匹配的写法**——本仓真出现过：`smoke.test.mjs` 曾用正则钉死 `if (typeof checkAuth === 'function' && !checkAuth(req, res)) return`，那段正是 fail-open 漏洞本身，不改测试就修不了代码。
 
 ## 授权边界
 
