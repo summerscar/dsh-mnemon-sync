@@ -7,6 +7,9 @@
 **把 AgentScope Platform 接进 DeepSeek Harness —— 可自行开关的模型供应商、输入框下方的额度读数，以及包含每日签到、贡献值与用量明细的设置页。**
 
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+[![npm version](https://img.shields.io/npm/v/@summerscar/dsh-connect-agentscope-platform?style=flat-square)](https://www.npmjs.com/package/@summerscar/dsh-connect-agentscope-platform)
+[![license](https://img.shields.io/badge/license-SATA--2.1-blue?style=flat-square)](../LICENSE)
 
 简体中文 · [English](../README.md)
 

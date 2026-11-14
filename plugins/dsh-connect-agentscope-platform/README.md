@@ -7,6 +7,9 @@
 **AgentScope Platform inside DeepSeek Harness — an optional model provider, credits under the composer, and a settings page for the daily check-in, contributions and usage.**
 
 [![DeepSeek Harness](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+[![npm version](https://img.shields.io/npm/v/@summerscar/dsh-connect-agentscope-platform?style=flat-square)](https://www.npmjs.com/package/@summerscar/dsh-connect-agentscope-platform)
+[![license](https://img.shields.io/badge/license-SATA--2.1-blue?style=flat-square)](LICENSE)
 
 [简体中文](docs/README.zh-CN.md) · English
 

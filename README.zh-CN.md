@@ -1,4 +1,8 @@
 # dsh-plugins
+
+[![awesome · DSH plugins](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+[![GitHub stars](https://img.shields.io/github/stars/summerscar/dsh-plugins?style=flat-square)](https://github.com/summerscar/dsh-plugins)
+
 简体中文 / [English](README.md)
 
 summerscar 的 DeepSeek Harness（DSH）插件。可以在[插件站点](https://summerscar.github.io/dsh-plugins/)浏览安装命令和各插件说明。
@@ -7,6 +11,7 @@ summerscar 的 DeepSeek Harness（DSH）插件。可以在[插件站点](https:/
 
 | 包 | 作用 |
 | --- | --- |
+| [`@summerscar/dsh-connect-agentscope-platform`](plugins/dsh-connect-agentscope-platform/docs/README.zh-CN.md) | AgentScope Platform：管理多个平台账号（手动切换计费账号、按额度自动选号、测活与健康标记），可自行开关的 OpenAI 兼容模型供应商（模型目录可自动获取并逐行修改），输入框下方的可用 Credits 与可兑换贡献值读数，以及包含每日签到、额度、贡献值、用量明细与价目表的设置面板。切换账号只影响新请求。 |
 | [`@summerscar/dsh-mnemon-sync`](plugins/dsh-mnemon-sync/docs/README.zh-CN.md) | 同步备份：把 dsh-mnemon 的记忆空间、项目档案、运行时记忆与用户级技能文件备份到 S3 兼容存储或 WebDAV，支持定时备份与选择性恢复。 |
 
 ## 安装
