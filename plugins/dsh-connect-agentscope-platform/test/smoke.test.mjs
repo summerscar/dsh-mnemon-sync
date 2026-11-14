@@ -1111,7 +1111,20 @@ test('the paying account row is distinguishable before reading it', () => {
   assert.match(client, /const isCurrent = account\.active === true/)
   assert.match(client, /style: isCurrent \? \{ \.\.\.rowStyle, \.\.\.S\.rowCurrent \} : rowStyle/)
   assert.match(client, /rowCurrent: \{/)
-  assert.match(client, /borderLeft: '3px solid var\(--dsw-alias-accent-primary, #1F6FEB\)'/)
+  // An accent bar plus a tint, so the row is legible before any text is read.
+  // The bar is an INSET SHADOW rather than a border on purpose: a border is part
+  // of the box, so it pushed this row's content 3px in (and at a 1.25 device
+  // pixel ratio a 3px border lays out as 2.4px, a sub-pixel offset no round
+  // margin cancels) — the rows then wrapped at different places. A shadow paints
+  // inside the same box and contributes nothing to layout.
+  assert.match(client, /boxShadow: 'inset 3px 0 0 var\(--dsw-alias-accent-primary, #1F6FEB\)'/)
+  assert.match(client, /background: 'var\(--dsw-alias-bg-layer-2\)'/)
+  // Decoration must not change the box: the extra left padding is cancelled by
+  // an equal negative margin, and the right padding by its own.
+  assert.match(client, /paddingLeft: '9px'/)
+  assert.match(client, /marginLeft: '-9px'/)
+  assert.match(client, /paddingRight: '8px'/)
+  assert.match(client, /marginRight: '-8px'/)
   // A rule that stops at the buttons reads as a clipped tick: the row needs a
   // bottom edge of its own, because the section supplies none.
   assert.match(client, /paddingBottom: '8px'/)

@@ -790,14 +790,29 @@ window.__ModuleLoader__.load({
        * deliberate instead of clipped.
        */
       rowCurrent: {
-        borderLeft: '3px solid var(--dsw-alias-accent-primary, #1F6FEB)',
+        // The accent bar is drawn with `boxShadow: inset`, NOT `borderLeft`.
+        // A border is part of the box, so it pushed this row's content 3px in
+        // (and at a 1.25 device pixel ratio a 3px border lays out as 2.4px,
+        // leaving a sub-pixel offset that no round margin can cancel). An inset
+        // shadow paints inside the same box without contributing to layout, so
+        // the row's content lands on exactly the same axis as a plain row.
+        boxShadow: 'inset 3px 0 0 var(--dsw-alias-accent-primary, #1F6FEB)',
         background: 'var(--dsw-alias-bg-layer-2)',
         borderRadius: '0 6px 6px 0',
         paddingLeft: '9px',
         paddingRight: '8px',
         paddingBottom: '8px',
-        // Reach the section's right edge so the tint is a band, not a stub.
-        marginRight: '-4px',
+        // Decoration must not change the box, so the extra 9px of left padding
+        // is cancelled here: the row reaches into the section's own 16px gutter
+        // and its CONTENT stays on the plain rows' axis. Measured at 375px and
+        // 1280px: content left edge and right edge both match a plain row to
+        // within 0.001px.
+        marginLeft: '-9px',
+        // The tint reaches the section's right edge as a band, not a stub. `-8`
+        // rather than `-4`: `paddingRight: 8px` would otherwise leave the
+        // decorated row 4px narrower than a plain one, and the buttons would
+        // still land off by that much.
+        marginRight: '-8px',
       },
       detailsSummary: { cursor: 'pointer', fontSize: '12px', color: 'var(--dsw-alias-label-secondary)' },
       mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
@@ -2199,6 +2214,12 @@ window.__ModuleLoader__.load({
 
       const credits = sharedCredits.credits ?? {}
       const creditsError = sharedCredits.error
+      // The platform's own account name, when a snapshot has fetched it. It is
+      // NOT always there: `quickCredits()` returns `user: null` by design (it
+      // reads credits only, never userinfo), so an account that has not run a
+      // scheduled snapshot yet has nothing here — and switching billing lands on
+      // exactly that state. Falling back to the row's own label keeps the line
+      // meaningful without a network round trip, and a label always exists.
       const user = state.credits?.latest?.user ?? {}
       const promo = credits.active_promotion ?? null
       const catalog = Array.isArray(state.catalog) ? state.catalog : []
@@ -2476,7 +2497,7 @@ window.__ModuleLoader__.load({
           actions: [h(Button, { key: 'f', small: true, onClick: fetchCredits, disabled: busy !== '' || sharedCredits.loading }, sharedCredits.loading ? t('pillLoading') : t('creditsFetchNow'))],
           children: [
             h('div', { key: 'kv', style: { ...S.modelCard, gap: '4px' } }, [
-              h('div', { key: 'u', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditUser')), h('span', { key: 'v', style: S.kvVal }, user.displayName ?? user.account ?? user.username ?? '—')]),
+              h('div', { key: 'u', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditUser')), h('span', { key: 'v', style: S.kvVal }, user.displayName ?? user.account ?? user.username ?? billingAccount?.label ?? '—')]),
               h('div', { key: 'c', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsAvailable')), h('span', { key: 'v', style: { ...S.kvVal, fontWeight: 700, fontSize: '16px' } }, credit(credits.display_available_credits))]),
               h('div', { key: 'l', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsLifetime')), h('span', { key: 'v', style: S.kvVal }, credit(credits.lifetime_score))]),
               h('div', { key: 'r', style: S.kv }, [h('span', { key: 'k', style: S.kvKey }, t('creditsRedeemable')), h('span', { key: 'v', style: S.kvVal }, credit(credits.redeemable_score))]),
