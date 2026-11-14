@@ -1762,16 +1762,67 @@ window.__ModuleLoader__.load({
         onPool(answer)
       })
 
+      // TWO BLOCKS, NOT THREE, and no `flexWrap`. The row used to be three
+      // sibling blocks that wrapped wherever the width ran out, so the paying
+      // row (which is 12px narrower inside) wrapped at a different place than
+      // the others and the buttons landed off-axis. Now the right-hand side is
+      // ONE column — readings on top, actions below — aligned to the right edge
+      // and centred vertically, so a row is always exactly two lines and no
+      // block can drift.
+      //
+      // NARROW (<640px) CANNOT USE THAT: the readings line alone measures
+      // 322.7px and the action group 309.8px, while a 375px viewport leaves
+      // 341px inside the section. The two blocks stack instead — readings, then
+      // the optional hint, then the actions — which is what the old wrap did
+      // here anyway, just without the drift.
       const rowStyle = {
         display: 'flex',
         flexDirection: narrow ? 'column' : 'row',
         alignItems: narrow ? 'stretch' : 'center',
         gap: '8px',
+        // `wrap` is NOT what made rows drift apart — the 200px flex-basis and the
+        // 12px of border/padding on the paying row were. Those are gone (the id
+        // block is `flex: 1 1 auto`, the right side is one `aside`), so a normal
+        // row (id + aside) never reaches the wrap threshold and stays on one
+        // line. What wrap IS still needed for: the three children that carry
+        // `flexBasis: 100%` — the expired hint, the rename bar and the editor.
+        // `100%` only means "start a new line and fill it" under `wrap`; with
+        // `nowrap` those children shared the main axis with id and aside and
+        // shrank the id block from 929px to 77px the moment the editor opened.
         flexWrap: 'wrap',
         borderTop: '1px solid var(--dsw-alias-border-l4)',
-        paddingTop: '10px',
+        // Symmetric padding, not `paddingTop`. With `alignItems: center` an
+        // asymmetric padding is inside the content box, so the left block sits
+        // 25px from the top and 14px from the bottom — visibly high, and the
+        // user asked for the row to be vertically centred. 5px each side keeps
+        // the same 58px row height while the gaps come out 20/19.
+        padding: '5px 0',
       }
-      const actionsStyle = { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }
+      /** Readings above, actions below, both flush to the right edge. */
+      const rowAsideStyle = {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: narrow ? 'stretch' : 'flex-end',
+        gap: '6px',
+        flex: narrow ? '0 0 auto' : '0 0 auto',
+        minWidth: 0,
+      }
+      /** The readings line: one line on wide screens, allowed to wrap on narrow. */
+      const rowMetaStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        flexWrap: 'wrap',
+        justifyContent: narrow ? 'flex-start' : 'flex-end',
+        fontSize: '12px',
+      }
+      const actionsStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        flexWrap: 'wrap',
+        justifyContent: narrow ? 'flex-start' : 'flex-end',
+      }
 
       const header = [
         h('span', { key: 'k', style: S.kvKey }, safeT(t, 'accountCurrent')),
@@ -1884,25 +1935,28 @@ window.__ModuleLoader__.load({
                 key: account.id,
                 style: isCurrent ? { ...rowStyle, ...S.rowCurrent } : rowStyle,
               }, [
-                h('div', { key: 'id', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: '1 1 200px', minWidth: 0 } }, [
+                h('div', { key: 'id', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: narrow ? '0 0 auto' : '1 1 auto', minWidth: 0 } }, [
                   h('span', { key: 'n', style: { ...S.kvVal, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' } }, title),
                   ...accountBadges(t, account).map(badge => h('span', { key: badge.key, style: S.pill(badge.tone) }, badge.text)),
-                ]),
-                h('div', { key: 'meta', style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px' } }, [
-                  h('span', { key: 'c', style: S.kvKey },
-                    `${safeT(t, 'accountCredits')} ${credit(account.credits)}`),
-                  h('span', { key: 'r', style: S.kvKey },
-                    `${safeT(t, 'accountLastRefreshed')} ${accountStamp(t, account.lastRefreshedAt)} ${stampZoneLabel()}`),
                 ]),
                 // An expired sign-in credential says nothing about whether model
                 // calls still work — that depends on this row's `sk-as-` key. The
                 // hint says which case this is, on its own line: the pill is
                 // 11px and shares a line with the name, so a full sentence there
-                // would overflow on a narrow screen.
-                expiredThis
-                  ? h('div', { key: 'expired-hint', style: S.hint }, safeT(t, rowKey.configured ? 'accountModelKeyUsable' : 'accountModelKeyUnusable'))
+                // would overflow on a narrow screen. On a wide row it spans the
+                // whole width BELOW everything else (it explains, it is not part
+                // of the action area), which is why it sits outside `aside`.
+                expiredThis && !narrow
+                  ? h('div', { key: 'expired-hint', style: { ...S.hint, flexBasis: '100%' } }, safeT(t, rowKey.configured ? 'accountModelKeyUsable' : 'accountModelKeyUnusable'))
                   : null,
-                h('div', { key: 'acts', style: actionsStyle }, [
+                h('div', { key: 'aside', style: rowAsideStyle }, [
+                  h('div', { key: 'meta', style: rowMetaStyle }, [
+                    h('span', { key: 'c', style: S.kvKey },
+                      `${safeT(t, 'accountCredits')} ${credit(account.credits)}`),
+                    h('span', { key: 'r', style: S.kvKey },
+                      `${safeT(t, 'accountLastRefreshed')} ${accountStamp(t, account.lastRefreshedAt)} ${stampZoneLabel()}`),
+                  ]),
+                  h('div', { key: 'acts', style: actionsStyle }, [
                   // "Make current" only appears where it can do something.
                   account.active === true || account.enabled === false ? null : h(Button, {
                     key: 'cur',
@@ -1944,8 +1998,11 @@ window.__ModuleLoader__.load({
                   }, safeT(t, 'accountRename')),
                   // The destructive pair is pushed to the opposite end, away from
                   // the routine buttons: five same-weight chips in a row made
-                  // "Remove" sit one slip away from "Probe".
-                  h('span', { key: 'gap', 'aria-hidden': 'true', style: { flex: '1 1 auto' } }),
+                  // "Remove" sit one slip away from "Probe". On a wide row the
+                  // aside is already right-aligned, so the spacer would only
+                  // open a gap INSIDE the group; it is kept for the narrow
+                  // stacked layout, where the group is full width.
+                  narrow ? h('span', { key: 'gap', 'aria-hidden': 'true', style: { flex: '1 1 auto' } }) : null,
                   pendingRemove === account.id
                     ? h(Button, {
                       key: 'rm',
@@ -1967,7 +2024,14 @@ window.__ModuleLoader__.load({
                   pendingRemove === account.id
                     ? h(Button, { key: 'no', small: true, onClick: () => setPendingRemove(''), disabled: busy !== '' }, safeT(t, 'cancel'))
                     : null,
+                  ]),
                 ]),
+                // On a narrow row the blocks are stacked, so the hint keeps its
+                // natural place at the end of the column instead of spanning a
+                // row it is not in.
+                expiredThis && narrow
+                  ? h('div', { key: 'expired-hint', style: S.hint }, safeT(t, rowKey.configured ? 'accountModelKeyUsable' : 'accountModelKeyUnusable'))
+                  : null,
                 renamingThis
                   ? h('div', { key: 'ren', style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flexBasis: '100%' } }, [
                     h('input', {
