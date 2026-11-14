@@ -268,9 +268,21 @@ export class AccountRuntime {
     return credentialFileState(this.paths.login)
   }
 
-  /** Arm this account's credit-snapshot timer and check-in scheduler. */
-  start() {
+  /**
+   * Arm this account's credit-snapshot timer and check-in scheduler.
+   *
+   * @param {object} [account] - the pool's record for this account. A runtime
+   *   owns only an id and a set of paths, so the marker it must honour is the
+   *   caller's live document entry, not a copy this object could have taken at
+   *   construction time and then never see updated.
+   */
+  start(account) {
     if (this.disposed) return this
+    // An account whose sign-in credential is expired keeps its model key but
+    // must not run timers: every snapshot cycle against a dead token sends a
+    // failure notification. It stays selectable by hand and still calls models;
+    // automatic selection's own probe is what brings it back.
+    if (account?.disabledReason === 'expired') return this
     this.engine.startScheduler()
     this.checkin.sync()
     return this
@@ -475,6 +487,14 @@ export class AccountPool {
     // Every account keeps its credentials in its own directory, without exception.
     const credentialFile = accountPaths(this.paths, account.id).login
     const credentialState = runtime ? runtime.credentialState() : credentialFileState(credentialFile)
+    // THIS ACCOUNT'S key, not the billing account's. The browser half used to
+    // render every row from `state.modelKey`, which describes only the billing
+    // account — so a row with no key showed another account's mask and looked
+    // configured. `mask` is included because the row's editor displays it, and
+    // it is not new exposure: `GET /model-key?accountId=X` already answers it.
+    const modelKey = runtime
+      ? runtime.modelKeyView()
+      : { configured: false, mask: '', source: '', fetchedAt: 0 }
     return {
       id: account.id,
       label: account.label,
@@ -482,11 +502,22 @@ export class AccountPool {
       active: account.id === this.activeId,
       credentialState,
       usable: account.enabled !== false && credentialState !== 'absent',
-      credits: probe && Number.isFinite(Number(probe.credits)) ? Number(probe.credits) : null,
+      // `null` means "not measured" and must stay null: `Number(null)` is 0 and
+      // `Number.isFinite(0)` is true, so the obvious coercion turns "unknown"
+      // into a confident zero — the panel would then show a balance of 0 for an
+      // account whose credential simply could not be read.
+      credits: probe && probe.credits !== null && probe.credits !== undefined && Number.isFinite(Number(probe.credits))
+        ? Number(probe.credits)
+        : null,
       lastRefreshedAt: probe && Number.isFinite(Number(probe.lastRefreshedAt)) ? Number(probe.lastRefreshedAt) : null,
       disabledReason: account.disabledReason ?? null,
       probe,
       excludedBy: exclusionOf({ account, probe: probe ?? undefined, nowMs }),
+      modelKey: {
+        configured: modelKey.configured,
+        source: modelKey.source,
+        mask: modelKey.mask,
+      },
     }
   }
 
@@ -548,7 +579,7 @@ export class AccountPool {
       activate: activate === true ? candidate.id : null,
     })
     await this.#persist()
-    runtime.start()
+    runtime.start(candidate)
     return { ...this.view(), account: this.#project(candidate, Date.now()), runtime }
   }
 
@@ -626,7 +657,7 @@ export class AccountPool {
     }
 
     const runtime = this.runtimes.get(account.id) ?? null
-    if (next) runtime?.start()
+    if (next) runtime?.start(account)
     else runtime?.stop()
     await this.#persist()
     return { ...this.view(), account: this.#project(account, Date.now()), runtime }
@@ -729,18 +760,40 @@ export class AccountPool {
     await writeMeasurementsProbes({ paths: this.paths, probes: { [account.id]: record }, log: this.log })
 
     if (record.outcome === 'expired' && account.enabled !== false) {
-      // Automatic disable: only ever written here, and only for an auth failure.
-      account.enabled = false
-      account.disabledReason = 'expired'
+      // Automatic marking: only ever written here, and only for an auth failure.
+      //
+      // IT DOES NOT DISABLE THE ACCOUNT. `enabled` answers "is this account still
+      // yours", while an expired sign-in credential only answers "can the
+      // management API still be read". Folding the two together used to disable
+      // a `sk-as-…` model key that was still perfectly usable, because the
+      // billing account was pruned away and the model call moved to an account
+      // that had no key at all. The marker is what automatic selection excludes
+      // on; the account itself stays selectable by hand.
+      //
+      // The timers still stop: an engine that keeps polling a dead token sends a
+      // failure notification every cycle. `stop()` runs on EVERY expired probe,
+      // not just the first one, because a path that re-arms the schedulers (a
+      // new refresh token saved through `/config`) must not leave a dead token
+      // on a timer. Automatic selection's probe still runs — `runAutoSwitchCycle`
+      // only skips disabled accounts — and `probe()` goes through
+      // `quickCredits()`, which never notifies, so self-healing still happens
+      // within one cycle for anyone using automatic selection.
       runtime?.stop()
-      this.document.activeId = pruneActiveId({ accounts: this.document.accounts, activeId: this.document.activeId })
-      await this.#persist()
-    } else if (record.outcome === 'ok' && account.enabled === false && account.disabledReason === 'expired') {
+      // NO `pruneActiveId` HERE. A manual choice outranks one failed probe, and
+      // pruning is exactly what re-created the missing-key failure.
+      //
+      // Persist only when the marker actually changed: the account stays enabled
+      // now, so this branch is reached on every cycle it stays expired.
+      if (account.disabledReason !== 'expired') {
+        account.disabledReason = 'expired'
+        await this.#persist()
+      }
+    } else if (record.outcome === 'ok' && account.disabledReason === 'expired') {
       // Self-healing, and strictly scoped: a successful probe clears the reason
-      // an automatic disable wrote, and never a `manual` one.
+      // an automatic marking wrote, and never a `manual` one.
       account.enabled = true
       delete account.disabledReason
-      runtime?.start()
+      runtime?.start(account)
       this.document.activeId = nextActiveId({ accounts: this.document.accounts, activeId: this.document.activeId })
       await this.#persist()
     }
@@ -865,7 +918,11 @@ export class AccountPool {
   /** Arm every account's scheduler plus the selection timer (if enabled). */
   start() {
     if (this.disposed) return this
-    for (const runtime of this.runtimes.values()) runtime.start()
+    // Each runtime is handed its own document entry: `start()` skips an account
+    // whose sign-in credential is expired, and that marker lives on the entry.
+    for (const [id, runtime] of this.runtimes) {
+      runtime.start(this.document.accounts.find(entry => entry.id === id))
+    }
     if (this.document.autoSwitch.enabled === true) this.startAutoSwitchCycle()
     return this
   }

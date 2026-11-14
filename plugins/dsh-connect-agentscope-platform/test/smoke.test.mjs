@@ -1150,17 +1150,19 @@ test('the page header says what it is and links to the platform', () => {
 
 test('a configured key shows its head and tail, not a blank box', async () => {
   const client = readFileSync(join(packageRoot, 'client.js'), 'utf8')
-  const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
   // The edit panel used to be an empty password input with no statement about
   // what was already stored: a user could not tell a configured key from a
-  // missing one, nor one key from another. The host already answers with a
-  // head-and-tail mask, so the panel now prints it.
-  assert.match(client, /modelKeyMask: typeof modelKeyView\.mask === 'string' \? modelKeyView\.mask : ''/)
-  assert.match(client, /modelKeyConfigured: modelKeyView\.configured === true/)
+  // missing one, nor one key from another. The host answers every row with its
+  // OWN `modelKey` projection, and the panel prints that row's mask.
   assert.match(client, /key: 'now', style: \{ \.\.\.S\.kv, justifyContent: 'flex-start', gap: '8px' \}/)
   // Monospace values now come from one shared style (S.kvMono) rather than an
   // inline `...S.mono, fontSize` patch per row.
-  assert.match(client, /modelKeyConfigured\s*\n?\s*\? h\('span', \{ key: 'v', style: S\.kvMono \}/)
+  assert.match(client, /rowKey\.configured\s*\n?\s*\? h\('span', \{ key: 'v', style: S\.kvMono \}/)
+  // PER ROW, never the billing account's: `state.modelKey` describes one
+  // account, so rendering the list from it showed that account's mask in every
+  // row and made an unconfigured row look configured.
+  assert.match(client, /const rowKey = account\.modelKey \?\?/)
+  assert.ok(!/modelKeyConfigured/.test(client), 'the install-wide modelKey props came back')
   // The route that produced the stored key is named, not guessed.
   assert.match(client, /function modelKeySourceLabel\(t, source\)/)
   assert.match(client, /if \(source === 'pasted'\) return safeT\(t, 'modelKeySourcePasted'\)/)

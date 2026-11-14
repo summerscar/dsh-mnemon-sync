@@ -138,9 +138,33 @@ test('normalizeAccount refuses any id that is not 24 lowercase hex digits', () =
 
 test('normalizeAccount keeps the two disabled reasons and nothing else', () => {
   assert.equal(normalizeAccount(account(ID_A, { enabled: false, disabledReason: 'manual' })).disabledReason, 'manual')
-  assert.equal(normalizeAccount(account(ID_B, { enabled: false, disabledReason: 'expired' })).disabledReason, 'expired')
+  // `manual` is a HUMAN decision, so an enabled account carrying it is a
+  // hand-edited document and the marker is not believed.
   assert.equal(normalizeAccount(account(ID_C, { disabledReason: 'manual' })).disabledReason, undefined,
-    'an enabled account carries no disabled reason')
+    'an enabled account cannot claim a manual disable')
+  // `expired` is a PLATFORM observation and coexists with `enabled: true`: the
+  // account stays usable, automatic selection just skips it. This is the whole
+  // point of the change — dropping the marker here would put a dead token back
+  // into automatic selection after every restart.
+  const expiredEnabled = normalizeAccount(account(ID_C, { enabled: true, disabledReason: 'expired' }))
+  assert.equal(expiredEnabled.disabledReason, 'expired')
+  assert.equal(expiredEnabled.enabled, true)
+  assert.equal(normalizeAccount(account(ID_A, { disabledReason: 'nonsense' })).disabledReason, undefined,
+    'an unknown reason is dropped, not repaired')
+})
+
+test('an account expired before the upgrade is re-enabled on load', () => {
+  // Documents written by the previous rule stored an automatically expired
+  // account as `enabled: false`. Re-enabling it is what makes the `sk-as-…` key
+  // it still holds usable again; `start()` skips expired accounts, so nothing
+  // begins polling the dead token. A `manual` disable is never touched.
+  const migrated = normalizeAccount(account(ID_A, { enabled: false, disabledReason: 'expired' }))
+  assert.equal(migrated.enabled, true, 'an expired account must come back enabled')
+  assert.equal(migrated.disabledReason, 'expired', 'the marker survives so automatic selection still skips it')
+
+  const manual = normalizeAccount(account(ID_B, { enabled: false, disabledReason: 'manual' }))
+  assert.equal(manual.enabled, false, 'a manual disable must never be re-enabled by the migration')
+  assert.equal(manual.disabledReason, 'manual')
 })
 
 test('nextActiveId makes the first account active', () => {
@@ -820,14 +844,19 @@ test('GET /accounts projects every account without a single token', async t => {
     assert.deepEqual(answer.body.autoSwitch, { enabled: false, thresholdPct: 20 })
 
     // The whitelist is spelled out: a field added to the projection has to be
-    // added here too, which is exactly the review this test is for.
+    // added here too, which is exactly the review this test is for. `modelKey`
+    // is this account's OWN key ({configured, source, mask}), not the billing
+    // account's — the browser half renders each row from it.
     assert.deepEqual(Object.keys(projection).sort(), [
       'active', 'credentialState', 'credits', 'disabledReason', 'enabled',
-      'excludedBy', 'id', 'label', 'lastRefreshedAt', 'probe', 'usable',
+      'excludedBy', 'id', 'label', 'lastRefreshedAt', 'modelKey', 'probe', 'usable',
     ])
     assert.equal(projection.active, true)
     assert.equal(projection.enabled, true)
     assert.equal(projection.credentialState, 'usable')
+    // The key itself is never in the projection; the mask and where it came from
+    // are, because the row's editor displays both.
+    assert.deepEqual(Object.keys(projection.modelKey).sort(), ['configured', 'mask', 'source'])
 
     // Nothing resembling a credential survives into the answer — including the
     // model key, which lives in the same vault directory.
@@ -1140,6 +1169,77 @@ test('removing the last usable account is refused with a reason', async t => {
   } finally { app.cleanup() }
 })
 
+test('an expired account keeps its own model key and stays switchable', async t => {
+  // AC2 + AC3: the whole reason an expired credential must not disable the
+  // account. A is billed to and holds a key; B has no key. Pruning A would move
+  // model calls onto B and fail with MISSING_CREDENTIAL.
+  const app = await mount(t, {
+    accounts: [account(ID_A), account(ID_B)],
+    activeId: ID_A,
+    vault: { [ID_A]: ROOT_CREDENTIALS },
+    fetch: async () => authRefusal(),
+  })
+  try {
+    const owned = ensureAccountDirs(accountPaths(app.paths, ID_A))
+    writeFileSync(owned.modelKey, JSON.stringify({ key: 'sk-as-for-A', source: 'pasted', fetchedAt: 7 }), { mode: 0o600 })
+
+    await app.call('/accounts/test', { method: 'POST', body: { accountId: ID_A } })
+
+    // Billing did NOT move: a manual choice outranks one failed probe.
+    const after = await app.call('/accounts')
+    assert.equal(after.body.activeAccountId, ID_A, 'an expired probe must not prune the active account')
+    const rowA = after.body.accounts.find(row => row.id === ID_A)
+    assert.equal(rowA.enabled, true)
+    assert.equal(rowA.disabledReason, 'expired')
+    // AC13/AC14: each row carries its OWN key, which is what lets the panel tell
+    // a configured row from an unconfigured one.
+    assert.equal(rowA.modelKey.configured, true)
+    assert.equal(rowA.modelKey.source, 'pasted')
+    const rowB = after.body.accounts.find(row => row.id === ID_B)
+    assert.equal(rowB.modelKey.configured, false, 'B has no key and must not borrow A\'s')
+
+    // AC3: switching by hand still works, and the billing key is still A's.
+    const switched = await app.call('/accounts/switch', { method: 'POST', body: { accountId: ID_A } })
+    assert.equal(switched.status, 200)
+    assert.equal(switched.body.activeAccountId, ID_A)
+  } finally { app.cleanup() }
+})
+
+test('an expired account does not arm its timers', async t => {
+  // AC9/R4: without this, dropping `enabled: false` would leave the snapshot
+  // timer polling a dead token and mailing a failure every cycle. Asserted on
+  // the CLASS contract, because the pool's own runtimes are not reachable
+  // through the HTTP surface a test is given.
+  const { AccountRuntime } = await import(new URL('../account-runtime.js', import.meta.url))
+  const { mkdtempSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const home = mkdtempSync(join(tmpdir(), 'asp-timers-'))
+  const previousHome = process.env.DSH_HOME
+  process.env.DSH_HOME = home
+  try {
+    const { pluginPaths } = await import(new URL('../paths.js', import.meta.url))
+    const { accountPaths, ensureAccountDirs } = await import(new URL('../paths.js', import.meta.url))
+    const paths = ensureAccountDirs(accountPaths(pluginPaths({ dshHome: home }), ID_A))
+    // The engine only arms when it is switched on AND holds a credential, so the
+    // "healthy still arms" half needs a real login file; otherwise both halves
+    // would report `null` and the test would pass for the wrong reason.
+    writeFileSync(paths.login, JSON.stringify({ ...ROOT_CREDENTIALS, enabled: true, autoRefresh: false }), { mode: 0o600 })
+    const runtime = new AccountRuntime({ id: ID_A, paths, log: () => {} })
+    try {
+      runtime.engine.updateConfig({ enabled: true, accessToken: 'at-for-timers', autoRefresh: false })
+      runtime.start({ id: ID_A, enabled: true, disabledReason: 'expired' })
+      assert.equal(runtime.engine.runtime.timer, null, 'an expired account must not run the snapshot timer')
+
+      // A healthy account still arms, or the skip would be a blanket outage.
+      runtime.start({ id: ID_A, enabled: true })
+      assert.notEqual(runtime.engine.runtime.timer, null, 'a healthy account must still arm its timer')
+    } finally { runtime.dispose() }
+  } finally {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+  }
+})
+
 test('a probe reports an auth failure as an expired credential', async t => {
   const app = await mount(t, {
     accounts: [account(ID_A)],
@@ -1161,7 +1261,12 @@ test('a probe reports an auth failure as an expired credential', async t => {
     const list = await app.call('/accounts')
     const [projection] = list.body.accounts
     assert.equal(projection.disabledReason, 'expired')
-    assert.equal(projection.enabled, false)
+    // AC1: an expired sign-in credential MARKS the account, it does not disable
+    // it. The model key it still holds is the reason the account stays usable.
+    assert.equal(projection.enabled, true)
+    assert.equal(projection.usable, true)
+    assert.equal(projection.credits, null)
+    assert.equal(projection.excludedBy?.reason, 'expired')
   } finally { app.cleanup() }
 })
 

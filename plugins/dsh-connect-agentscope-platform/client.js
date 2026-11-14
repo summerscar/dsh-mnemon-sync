@@ -114,7 +114,10 @@ window.__ModuleLoader__.load({
       accountUntitled: '未命名账号',
       accountStateCurrent: '当前',
       accountStateDisabled: '已禁用',
-      accountStateExpired: '凭据失效',
+      accountStateExpired: '登录凭证过期',
+      accountModelKeyUsable: '模型调用仍可用',
+      accountModelKeyUnusable: '未配 sk-as- 密钥，模型调用也不可用',
+      accountSwitchNoKey: '该账号未配 sk-as 密钥，设为当前也无法调用模型',
       accountStateLowCredit: '额度低',
       accountAutoSwitch: '按额度自动选号',
       accountAutoSwitchHint: '当前账号额度低于阈值时，自动换成额度更高的那个。',
@@ -351,7 +354,10 @@ window.__ModuleLoader__.load({
       accountUntitled: 'Untitled account',
       accountStateCurrent: 'Current',
       accountStateDisabled: 'Disabled',
-      accountStateExpired: 'Credentials expired',
+      accountStateExpired: 'Login token expired',
+      accountModelKeyUsable: 'Model calls still work',
+      accountModelKeyUnusable: 'No sk-as- key configured, so model calls will not work either',
+      accountSwitchNoKey: 'This account has no sk-as- key, so making it current would still fail model calls',
       accountStateLowCredit: 'Low credit',
       accountAutoSwitch: 'Pick by credit automatically',
       accountAutoSwitchHint: 'When the current account drops below the threshold, switch to the one with more credit.',
@@ -1485,8 +1491,13 @@ window.__ModuleLoader__.load({
       const badges = []
       if (account?.active === true) badges.push({ key: 'current', tone: 'ok', text: safeT(t, 'accountStateCurrent') })
       if (account?.enabled === false) badges.push({ key: 'disabled', tone: 'bad', text: safeT(t, 'accountStateDisabled') })
+      // Neutral, not `bad`. An expired sign-in credential means the management
+      // API cannot be read; it does NOT mean the account is unusable, because
+      // its `sk-as-…` key still calls models. `S.pill` has no warn tier, and
+      // adding one would mean guessing at a theme variable — neutral says
+      // "read this" without claiming the account is broken.
       if (account?.disabledReason === 'expired' || account?.probe?.outcome === 'expired') {
-        badges.push({ key: 'expired', tone: 'bad', text: safeT(t, 'accountStateExpired') })
+        badges.push({ key: 'expired', tone: undefined, text: safeT(t, 'accountStateExpired') })
       }
       if (account?.probe?.outcome === 'out-of-credit') badges.push({ key: 'low', tone: undefined, text: safeT(t, 'accountStateLowCredit') })
       return badges
@@ -1541,7 +1552,6 @@ window.__ModuleLoader__.load({
     function AccountPoolSection(props) {
       const {
         t, pool, onPool, run, busy, notify, patchAccount, reloadPool,
-        modelKeyMask = '', modelKeyConfigured = false, modelKeySource = '',
       } = props
       const accounts = Array.isArray(pool.accounts) ? pool.accounts : []
       const activeAccountId = typeof pool.activeAccountId === 'string' ? pool.activeAccountId : ''
@@ -1572,6 +1582,17 @@ window.__ModuleLoader__.load({
       React.useEffect(() => { setThreshold(String(autoSwitch.thresholdPct ?? 20)) }, [autoSwitch.thresholdPct])
 
       const switchTo = accountId => run('account-switch', async () => {
+        // An account with no `sk-as-` key can still be made current — the host
+        // only refuses `enabled === false` — and then the very next model call
+        // fails with MISSING_CREDENTIAL. "It worked" followed by a failed call is
+        // the worst kind of feedback, so the switch is refused HERE, before any
+        // request, with the reason in the panel's one error channel.
+        //
+        // Deliberately NOT a disabled button: a disabled <button> receives no
+        // mouse events, so its `title` never shows, and a phone has no hover at
+        // all. The user would see a grey control and no explanation.
+        const target = accounts.find(row => row.id === accountId)
+        if (target && target.modelKey?.configured !== true) throw new Error(safeT(t, 'accountSwitchNoKey'))
         const answer = await post('/accounts/switch', { accountId })
         onPool(answer)
       })
@@ -1840,6 +1861,10 @@ window.__ModuleLoader__.load({
               // "Current" pill you had to read. The paying row now carries a
               // left rule and a tint, so it is legible before any text is read.
               const isCurrent = account.active === true
+              // This row's OWN model key. Never `state.modelKey`, which describes
+              // the billing account only.
+              const rowKey = account.modelKey ?? { configured: false, source: '', mask: '' }
+              const expiredThis = account.disabledReason === 'expired' || account.probe?.outcome === 'expired'
               return h('div', {
                 key: account.id,
                 style: isCurrent ? { ...rowStyle, ...S.rowCurrent } : rowStyle,
@@ -1854,6 +1879,14 @@ window.__ModuleLoader__.load({
                   h('span', { key: 'r', style: S.kvKey },
                     `${safeT(t, 'accountLastRefreshed')} ${accountStamp(t, account.lastRefreshedAt)} ${stampZoneLabel()}`),
                 ]),
+                // An expired sign-in credential says nothing about whether model
+                // calls still work — that depends on this row's `sk-as-` key. The
+                // hint says which case this is, on its own line: the pill is
+                // 11px and shares a line with the name, so a full sentence there
+                // would overflow on a narrow screen.
+                expiredThis
+                  ? h('div', { key: 'expired-hint', style: S.hint }, safeT(t, rowKey.configured ? 'accountModelKeyUsable' : 'accountModelKeyUnusable'))
+                  : null,
                 h('div', { key: 'acts', style: actionsStyle }, [
                   // "Make current" only appears where it can do something.
                   account.active === true || account.enabled === false ? null : h(Button, {
@@ -1995,17 +2028,20 @@ window.__ModuleLoader__.load({
                       // underneath, which read like a required sequence rather
                       // than a choice.
                       h('div', { key: 'src', style: { ...S.hint, fontWeight: 600 } }, safeT(t, 'modelKeyEither')),
-                      // WHICH key is in place. The host already answers with a
-                      // head-and-tail mask; showing it turns the edit panel from
-                      // a blank password box into "this is the key you have, and
-                      // it is not the one you just pasted".
+                      // WHICH key is in place — THIS account's, never the billing
+                      // account's. The host answers every row with its own
+                      // `modelKey` projection for exactly this reason: rendering
+                      // the list from `state.modelKey` showed the billing
+                      // account's mask in every row, so a row with no key looked
+                      // configured until a model call failed with
+                      // MISSING_CREDENTIAL.
                       h('div', { key: 'now', style: { ...S.kv, justifyContent: 'flex-start', gap: '8px' } }, [
                         h('span', { key: 'k', style: S.kvKey }, safeT(t, 'modelKeyCurrent')),
-                        modelKeyConfigured
-                          ? h('span', { key: 'v', style: S.kvMono }, modelKeyMask)
+                        rowKey.configured
+                          ? h('span', { key: 'v', style: S.kvMono }, rowKey.mask)
                           : h('span', { key: 'v', style: S.kvKey }, safeT(t, 'modelKeyMissing')),
-                        modelKeyConfigured && modelKeySource !== ''
-                          ? h('span', { key: 's', style: S.pill('ok') }, modelKeySourceLabel(t, modelKeySource))
+                        rowKey.configured && rowKey.source !== ''
+                          ? h('span', { key: 's', style: S.pill('ok') }, modelKeySourceLabel(t, rowKey.source))
                           : null,
                       ]),
                       h('div', { key: 'acts', style: actionsStyle }, [
@@ -2172,7 +2208,6 @@ window.__ModuleLoader__.load({
       // account, so they always come from the billing document. The check-in and
       // the model key are per-account and follow the viewed one.
       const checkin = state.checkin ?? {}
-      const modelKeyView = state.modelKey ?? {}
       const meta = state.meta ?? {}
 
       /**
@@ -2336,12 +2371,9 @@ window.__ModuleLoader__.load({
             activeAccountId,
             autoSwitch: state.pool?.autoSwitch ?? state.autoSwitch ?? {},
           },
-          // The masked `sk-as-` key of the BILLING account, straight from the
-          // host. Without it the edit panel was a blank password box: no way to
-          // tell a configured key from a missing one, or one key from another.
-          modelKeyMask: typeof modelKeyView.mask === 'string' ? modelKeyView.mask : '',
-          modelKeyConfigured: modelKeyView.configured === true,
-          modelKeySource: typeof modelKeyView.source === 'string' ? modelKeyView.source : '',
+          // No install-wide model-key props: each row renders its OWN key from
+          // the projection. Passing the billing account's here is what made
+          // every row show that account's mask.
           onPool: applyPool,
           patchAccount,
           reloadPool,

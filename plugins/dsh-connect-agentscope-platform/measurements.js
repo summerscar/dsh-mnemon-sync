@@ -89,9 +89,26 @@ export function normalizeAccount(value) {
   /** @type {Record<string, unknown>} */
   const account = { id, label, enabled, createdAt }
 
-  // A disabled reason only describes a disabled account, and only the two
-  // agreed reasons are meaningful (Q10). Anything else is dropped, not repaired.
-  if (!enabled && DISABLED_REASONS.includes(value.disabledReason)) account.disabledReason = value.disabledReason
+  // A disabled reason only describes an account's state, and only the two agreed
+  // reasons are meaningful (Q10). Anything else is dropped, not repaired.
+  //
+  // `manual` still requires `enabled: false`: it records that a PERSON turned the
+  // account off, so an enabled account carrying it is a hand-edited document and
+  // the marker is not believed. `expired` is different — it records that the
+  // platform refused the sign-in credential, which says nothing about whether the
+  // account is the user's or whether its `sk-as-…` key still works. It is kept
+  // alongside `enabled: true`, which is what lets automatic selection skip the
+  // account while manual selection and model calls keep working.
+  if (DISABLED_REASONS.includes(value.disabledReason)) {
+    if (value.disabledReason === 'manual' ? !enabled : true) account.disabledReason = value.disabledReason
+  }
+
+  // Migration for documents written before this rule: an automatically expired
+  // account used to be stored as `enabled: false`. Re-enable it so the model key
+  // it still holds becomes usable again on the first start after the upgrade.
+  // `start()` skips expired accounts, so nothing begins polling the dead token,
+  // and the marker keeps automatic selection off it. `manual` is never touched.
+  if (account.disabledReason === 'expired' && !enabled) account.enabled = true
 
   return account
 }
