@@ -820,8 +820,7 @@ export function apply(ctx, patchConfig = {}) {
    *     an UNKNOWN id must answer 400 — `resolve()` throws `badParam`, which the
    *     catch below maps to 400 rather than letting it become a 500.
    */
-  async function handle(req, res, checkAuth) {
-    if (typeof checkAuth === 'function' && !checkAuth(req, res)) return
+  async function handle(req, res) {
     let url
     try { url = new URL(req.url ?? '/', 'http://agentscope.invalid') } catch { sendJson(res, 400, { error: 'bad url' }); return }
     const sub = url.pathname.startsWith(API_PREFIX) ? url.pathname.slice(API_PREFIX.length) : url.pathname
@@ -871,9 +870,9 @@ export function apply(ctx, patchConfig = {}) {
 
       // --- account pool ---
       //
-      // All of these sit BEHIND the same `checkAuth` gate as everything else:
-      // they are the newest surface, so a bypass here would be the easiest one
-      // to miss.
+      // All of these sit BEHIND the handler's `rejected()` gate, like every
+      // other route: they are the newest surface, so a bypass here would be
+      // the easiest one to miss.
       if (sub === '/accounts' && method === 'GET') { sendJson(res, 200, accountPool.view()); return }
 
       if (sub === '/accounts' && method === 'POST') {
@@ -1321,17 +1320,50 @@ export function apply(ctx, patchConfig = {}) {
     }
   }
 
+  /**
+   * Admit only requests the Host's connection service vouches for.
+   *
+   * These routes read credentials, rotate the model key and move settings, so
+   * an unauthenticated local request must never reach them. Follow the current
+   * `requestRejection(req)` contract (undefined = admit, or an HTTP status);
+   * older Hosts exposing only `authorizeIndex` still work. If neither is
+   * available, reject rather than falling back to Host/Origin or loopback
+   * checks: a missing guard is not a reason to open the route.
+   */
+  const rejected = (req, res) => {
+    const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
+    if (connection === undefined || connection === null) {
+      res.statusCode = 401
+      res.end()
+      return true
+    }
+    if (typeof connection.requestRejection === 'function') {
+      const rejection = connection.requestRejection(req)
+      if (rejection === undefined) return false
+      res.statusCode = rejection
+      res.end()
+      return true
+    }
+    if (typeof connection.authorizeIndex === 'function') {
+      // `authorizeIndex` answers the response itself when it rejects; its
+      // boolean says which way it went.
+      return connection.authorizeIndex(req, res) === false
+    }
+    res.statusCode = 401
+    res.end()
+    return true
+  }
+
   try {
     ctx.inject(['webServer'], child => {
       child.effect(() => child.webServer.register({
         kind: 'prefix',
         path: API_PREFIX,
         handler: (req, res) => {
-          const connection$ = ctx.get('connection')
-          const checkAuth = connection$ !== undefined && typeof connection$.authorizeIndex === 'function'
-            ? (request, response) => connection$.authorizeIndex(request, response)
-            : undefined
-          void handle(req, res, checkAuth)
+          if (rejected(req, res)) return
+          void handle(req, res).catch((error) => {
+            sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
+          })
         },
       }), 'agentscope-platform: http api')
     })

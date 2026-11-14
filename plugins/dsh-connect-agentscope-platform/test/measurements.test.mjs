@@ -674,7 +674,7 @@ const ROOT_CREDENTIALS = {
  * tests out of the live install — and the returned `home` lets a test assert
  * that what it wrote really landed there.
  *
- * @param {{ rootCredentials?: boolean, credentials?: object, accounts?: object[], activeId?: string, vault?: Record<string, object>, fetch?: Function }} [options]
+ * @param {{ rootCredentials?: boolean, credentials?: object, accounts?: object[], activeId?: string, vault?: Record<string, object>, fetch?: Function, connection?: object|null }} [options]
  */
 async function mount(t, options = {}) {
   const home = tempHome(t)
@@ -708,7 +708,13 @@ async function mount(t, options = {}) {
   // Host services this plugin reads through `ctx.get`. `agentDefaultModel` is the
   // one the composer gate asks for; a test supplies it to observe the answer, and
   // its absence is a Host too old to have the service (the failure path).
-  const services = options.services ?? {}
+  const services = { ...(options.services ?? {}) }
+  // The Host's `connection` service, which the HTTP mount asks before dispatch.
+  // Default to one that admits: these tests exercise routing, not authentication.
+  // A test asserting fail-closed passes `connection: null` or `{}` explicitly.
+  services.connection = 'connection' in options
+    ? options.connection
+    : { requestRejection: () => undefined }
   const ctx = {
     fiber: { entry: { options: { id: 'dsh-connect-agentscope-platform' } } },
     logger: { warn: () => {} },
@@ -766,7 +772,26 @@ async function mount(t, options = {}) {
     else process.env.DSH_HOME = previousHome
   }
 
-  return { home, paths, call, cleanup }
+  // `handler` is the raw mounted route: a test that asserts on the STATUS of a
+  // rejected request cannot go through `call()`, which insists on a JSON body
+  // and a non-zero status. Authentication tests use it directly.
+  return { home, paths, call, cleanup, handler: (req, res) => handlerHolder.handler(req, res) }
+}
+
+/**
+ * A response object for the RAW mounted route.
+ *
+ * `rejected()` writes `res.statusCode` and calls `res.end()`, the plain
+ * node:http shape, whereas `call()`'s fake speaks `writeHead`. A test that
+ * asserts a rejection uses this one so the status it reads is the one the gate
+ * actually set.
+ */
+function rejectedResponse() {
+  return {
+    statusCode: 0,
+    body: '',
+    end(text = '') { this.body = text },
+  }
 }
 
 /** A platform answer shaped like the refresh endpoint's own document. */
@@ -967,6 +992,52 @@ test('an unreadable default is an empty answer, never a failed request', async t
     assert.equal(answer.status, 200)
     assert.deepEqual(answer.body, { provider: '' })
   } finally { throwing.cleanup() }
+})
+
+test('the HTTP mount rejects when the Host auth service is missing (fail-closed)', async t => {
+  // These routes read credentials and rotate the model key, so "no guard
+  // available" must mean 401 — not a pass. Before the fix the gate was handed
+  // in as `undefined` and skipped itself, admitting every request.
+  for (const [label, connection] of [
+    ['service missing', null],
+    ['service exposes no hook', {}],
+  ]) {
+    const app = await mount(t, { rootCredentials: true, connection })
+    try {
+      for (const [method, path] of [['GET', '/state'], ['POST', '/model-key/reset']]) {
+        const response = rejectedResponse()
+        await app.handler({
+          url: `/api/agentscope-platform${path}`,
+          method,
+          [Symbol.asyncIterator]: async function* () {},
+        }, response)
+        assert.equal(response.statusCode, 401, `${label}: ${method} ${path} must be rejected`)
+        assert.equal(response.body, '', `${label}: ${method} ${path} must not reach a handler`)
+      }
+    } finally { app.cleanup() }
+  }
+})
+
+test('the HTTP mount admits a request the Host vouches for', async t => {
+  // The other half of fail-closed: a real Host must still be served. This is
+  // the path the panel polls, so a regression here breaks the whole UI.
+  const app = await mount(t, { rootCredentials: true, connection: { requestRejection: () => undefined } })
+  try {
+    const answer = await app.call('/state')
+    assert.equal(answer.status, 200)
+  } finally { app.cleanup() }
+
+  // And a Host that rejects must have its status forwarded, not flattened to 401.
+  const denied = await mount(t, { rootCredentials: true, connection: { requestRejection: () => 403 } })
+  try {
+    const response = rejectedResponse()
+    await denied.handler({
+      url: '/api/agentscope-platform/state',
+      method: 'GET',
+      [Symbol.asyncIterator]: async function* () {},
+    }, response)
+    assert.equal(response.statusCode, 403, 'the Host status must be forwarded as-is')
+  } finally { denied.cleanup() }
 })
 
 test('an unknown accountId is a 400, not a 500', async t => {

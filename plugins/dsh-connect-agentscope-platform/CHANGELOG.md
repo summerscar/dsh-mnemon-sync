@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Security**: All HTTP endpoints now go through Host authentication
+  (`connection.requestRejection`). Previously, when Host authentication was
+  unavailable, requests were admitted and could reach endpoints that read
+  credentials and reset the model key. Hosts exposing only `authorizeIndex`
+  remain supported; if the service is missing or neither hook is available,
+  requests are rejected with 401 instead of falling back to Host/Origin or
+  loopback checks.
 - New plugin: connect AgentScope Platform to DSH.
   - **Account pool.** Keep several platform accounts side by side. The account
     marked *Current* pays for new requests; the row carrying it is highlighted,

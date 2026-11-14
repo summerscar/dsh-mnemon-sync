@@ -243,7 +243,10 @@ test('the HTTP API answers state with an opt-in provider and the user catalog', 
   const ctx = {
     fiber: { entry: { options: { id: 'dsh-connect-agentscope-platform' } } },
     logger: { warn: () => {} },
-    get: () => undefined,
+    // The Host's `connection` service gates the HTTP mount before dispatch.
+    // A Host that admits is what a real deployment runs; fail-closed is
+    // asserted structurally here and exercised in measurements.test.mjs.
+    get: name => (name === 'connection' ? { requestRejection: () => undefined } : undefined),
     inject(_names, callback) {
       callback({
         effect: fn => { fn(); return () => {} },
@@ -945,9 +948,26 @@ test('switching an account does not re-register the provider', () => {
 
 test('the pool endpoints sit behind the one auth gate', () => {
   const host = readFileSync(join(packageRoot, 'index.js'), 'utf8')
-  // `handle()` opens with the gate; a new endpoint reached through it inherits
-  // the check. An endpoint mounted on its own route would not.
-  assert.match(host, /async function handle\(req, res, checkAuth\) \{\s*\n\s*if \(typeof checkAuth === 'function' && !checkAuth\(req, res\)\) return/)
+  // The gate sits at the MOUNT, not inside `handle()`: a request that fails it
+  // never reaches routing, so a new endpoint cannot forget to call it. An
+  // endpoint mounted on its own route would bypass it.
+  assert.match(host, /handler: \(req, res\) => \{\s*\n\s*if \(rejected\(req, res\)\) return/,
+    'the HTTP mount must reject before dispatch')
+  // FAIL-CLOSED. A missing Host service is not permission to serve: the old
+  // gate was passed as `undefined` in that case and the guard inside `handle()`
+  // skipped itself, admitting the request. These routes read credentials and
+  // reset the model key, so "no guard available" must mean 401.
+  assert.ok(!/checkAuth/.test(host), 'the optional-gate plumbing came back')
+  assert.match(host, /const rejected = \(req, res\) => \{/, 'the gate builder moved; re-anchor this nail')
+  const gate = /const rejected = \(req, res\) => \{[\s\S]{0,1200}?\n  \}/.exec(host)
+  assert.ok(gate !== null, 'the gate body moved; re-anchor this nail')
+  assert.match(gate[0], /connection === undefined \|\| connection === null[\s\S]{0,120}?401/,
+    'a missing connection service must answer 401')
+  assert.match(gate[0], /requestRejection/, 'the current Host contract must be used')
+  assert.match(gate[0], /authorizeIndex/, 'older Hosts exposing only authorizeIndex must still work')
+  // Two distinct 401 exits: the missing service, and the neither-hook fallthrough.
+  assert.equal((gate[0].match(/res\.statusCode = 401/g) ?? []).length, 2,
+    'both "no Host service" and "no usable hook" must answer 401')
   for (const route of [
     "sub === '/accounts' && method === 'GET'",
     "sub === '/accounts' && method === 'POST'",
